@@ -33,7 +33,9 @@ npm test          # all three suites
 | --- | --- |
 | `test:export` | Ink exported to a flattened PDF lands at exactly the page coordinates it was drawn at, including on a `/Rotate 90` page. |
 | `test:live-stroke` | The in-progress stroke is painted where the pointer is, and does not move when the pointer is released. |
-| `test:objects` | Shapes, text boxes and notes can be removed — and stay removed after a repaint. |
+| `test:objects` | Shapes, text boxes and notes can be removed, stay removed after a repaint, and come back on undo. |
+| `test:zoom` | Zooming keeps whatever is under the pointer under the pointer, actually scales the page, and the preset menu applies. |
+| `test:unsaved` | Closing with unsaved ink asks first; closing a saved document does not. |
 
 Each one checks rendered output rather than internal state: they rasterise real
 pages or compare real frames. Every coordinate bug this project has had would
@@ -56,9 +58,22 @@ chmod +x release/Inkwell-*.AppImage
 ./release/Inkwell-*.AppImage
 ```
 
-It registers as a handler for `application/pdf`, so it can be set as the system
-PDF viewer once integrated (via Gear Lever, AppImageLauncher, or a hand-written
-`.desktop` file).
+## Making it your PDF viewer
+
+```bash
+npm run install:desktop
+```
+
+Copies the AppImage to `~/Applications`, installs a launcher and icon under
+`~/.local/share`, and sets Inkwell as the handler for `application/pdf`.
+Everything lands in your own home directory — no root, nothing outside XDG
+directories. To install the launcher without changing your default viewer, pass
+`--no-default`; to reverse the whole thing, including handing the PDF
+association back to whatever you used before:
+
+```bash
+bash scripts/install-desktop.sh --uninstall
+```
 
 ---
 
@@ -92,6 +107,15 @@ draws as fast as the first.
 **Palm rejection.** Once the pen is seen, touch input is suppressed briefly —
 including native touch scrolling — so a hand resting on the screen mid-sentence
 can neither draw nor scroll the page out from under you.
+
+**The cursor is the nib.** Instead of a crosshair, the pointer *is* the mark you
+are about to make: a dot of the exact width and colour of the current tool,
+scaled with the zoom. Picking a 24pt highlighter at 200% shows a 48px chisel, so
+width is something you judge by eye rather than by reading a slider.
+
+**The palette gets out of the way.** Drag it by its grip to any edge and it
+snaps there, turning vertical down the sides, and the page reserves that edge so
+nothing is ever hidden underneath it. Where you left it is remembered.
 
 ## Tools
 
@@ -130,6 +154,7 @@ it is a single undo step.
 | `Ctrl+B` | Pages sidebar |
 | `Ctrl` `+` / `−` / `0` / `1` / `2` | Zoom in, out, actual size, fit width, fit page |
 | `Ctrl+wheel`, pinch | Zoom about the cursor |
+| Click the zoom % | Preset levels and fit modes |
 | `Delete` | Delete selection |
 
 ---
@@ -184,6 +209,15 @@ those strokes get their own save rather than being silently considered written.
 
 The sidecar records a hash of the source PDF. Opening notes against a PDF that
 has since changed warns you instead of quietly placing ink in the wrong spot.
+
+### Zoom is arithmetic, not measurement
+
+Page positions are computed from the layout constants rather than read back from
+the DOM. Measuring every page with `getBoundingClientRect` on every wheel tick
+forced a synchronous layout each time, which is what made zooming stutter;
+wheel and pinch events are also coalesced into one update per animation frame.
+Zoom anchors on the point under the pointer, so the document grows around what
+you are looking at instead of sliding away from it.
 
 ### Memory is bounded
 

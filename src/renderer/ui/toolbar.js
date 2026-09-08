@@ -7,6 +7,8 @@
 
 import { icon } from './icons.js';
 
+const clamp = (value, lo, hi) => (value < lo ? lo : value > hi ? hi : value);
+
 export const PEN_COLORS = [
   '#1C1C1E',
   '#8E8E93',
@@ -57,6 +59,17 @@ export class Toolbar extends EventTarget {
     this.popover.hidden = true;
     this.buttons = new Map();
 
+    // Grip: the palette floats over the page, so it has to be movable or it
+    // permanently hides whatever is underneath it. Dragging is deliberately
+    // confined to this handle so it can never be confused with a tool press.
+    this.grip = document.createElement('button');
+    this.grip.className = 'tool-grip';
+    this.grip.type = 'button';
+    this.grip.title = 'Drag to move the palette';
+    this.grip.setAttribute('aria-label', 'Move the tool palette');
+    this.grip.innerHTML = '<span></span><span></span><span></span>';
+    this.el.append(this.grip);
+
     for (const entry of TOOLS) {
       if (entry.divider) {
         const divider = document.createElement('div');
@@ -82,6 +95,11 @@ export class Toolbar extends EventTarget {
     }
 
     mount.append(this.el, this.popover);
+    this.mount = mount;
+
+    this.#wireDrag();
+    this.applyDock();
+    window.addEventListener('resize', () => this.applyDock());
 
     // A click anywhere else dismisses the popover, the way a real popover does.
     document.addEventListener('pointerdown', (event) => {
@@ -91,6 +109,105 @@ export class Toolbar extends EventTarget {
     });
 
     this.render();
+  }
+
+  // --- position --------------------------------------------------------------
+
+  /** Lay the palette out against its docked edge. */
+  applyDock() {
+    const dock = this.tools.dock || 'bottom';
+    const vertical = dock === 'left' || dock === 'right';
+    this.el.classList.toggle('vertical', vertical);
+    for (const side of ['bottom', 'top', 'left', 'right']) {
+      this.el.classList.toggle(`dock-${side}`, side === dock);
+    }
+
+    // Measure after the orientation class lands, or a vertical palette is
+    // positioned using its horizontal dimensions.
+    const bounds = this.mount.getBoundingClientRect();
+    const size = this.el.getBoundingClientRect();
+    const margin = 20;
+    const fraction = this.tools.dockOffset ?? 0.5;
+
+    if (vertical) {
+      const travel = Math.max(0, bounds.height - size.height - margin * 2);
+      this.el.style.top = `${margin + travel * fraction}px`;
+      this.el.style.left =
+        dock === 'left' ? `${margin}px` : `${bounds.width - size.width - margin}px`;
+    } else {
+      const travel = Math.max(0, bounds.width - size.width - margin * 2);
+      this.el.style.left = `${margin + travel * fraction}px`;
+      this.el.style.top =
+        dock === 'top' ? `${margin}px` : `${bounds.height - size.height - margin}px`;
+    }
+    this.dispatchEvent(new CustomEvent('dock', { detail: { dock } }));
+  }
+
+  #wireDrag() {
+    let drag = null;
+
+    this.grip.addEventListener('pointerdown', (event) => {
+      if (event.button !== 0) return;
+      event.preventDefault();
+      event.stopPropagation();
+      this.closePopover();
+      const rect = this.el.getBoundingClientRect();
+      drag = {
+        pointerId: event.pointerId,
+        grabX: event.clientX - rect.left,
+        grabY: event.clientY - rect.top,
+      };
+      this.grip.setPointerCapture(event.pointerId);
+      this.el.classList.add('dragging');
+    });
+
+    this.grip.addEventListener('pointermove', (event) => {
+      if (!drag || event.pointerId !== drag.pointerId) return;
+      const bounds = this.mount.getBoundingClientRect();
+      this.el.style.left = `${event.clientX - bounds.left - drag.grabX}px`;
+      this.el.style.top = `${event.clientY - bounds.top - drag.grabY}px`;
+    });
+
+    const end = (event) => {
+      if (!drag || event.pointerId !== drag.pointerId) return;
+      drag = null;
+      this.el.classList.remove('dragging');
+      this.#snapToNearestEdge();
+    };
+    this.grip.addEventListener('pointerup', end);
+    this.grip.addEventListener('pointercancel', end);
+  }
+
+  /**
+   * Snap to whichever edge the palette was dropped nearest, and remember how
+   * far along that edge it sat. Free-floating would let it be dropped over the
+   * middle of the page, which is the problem this is meant to solve.
+   */
+  #snapToNearestEdge() {
+    const bounds = this.mount.getBoundingClientRect();
+    const rect = this.el.getBoundingClientRect();
+    const centreX = rect.left + rect.width / 2 - bounds.left;
+    const centreY = rect.top + rect.height / 2 - bounds.top;
+
+    const distances = {
+      left: centreX,
+      right: bounds.width - centreX,
+      top: centreY,
+      bottom: bounds.height - centreY,
+    };
+    const dock = Object.keys(distances).reduce((a, b) => (distances[a] <= distances[b] ? a : b));
+
+    const vertical = dock === 'left' || dock === 'right';
+    const margin = 20;
+    const travel = vertical
+      ? Math.max(1, bounds.height - rect.height - margin * 2)
+      : Math.max(1, bounds.width - rect.width - margin * 2);
+    const along = vertical ? centreY - rect.height / 2 - margin : centreX - rect.width / 2 - margin;
+
+    this.tools.dock = dock;
+    this.tools.dockOffset = Math.min(1, Math.max(0, along / travel));
+    this.applyDock();
+    this.dispatchEvent(new CustomEvent('settings'));
   }
 
   select(toolId) {
@@ -132,28 +249,52 @@ export class Toolbar extends EventTarget {
     if (!content) return;
     this.popover.replaceChildren(content);
 
-    // Spring the popover out of the button that opened it, not the centre of
-    // the screen — the visual link is what makes it feel attached.
-    const button = this.buttons.get(toolId);
-    if (button) {
-      const mountRect = this.popover.offsetParent?.getBoundingClientRect();
-      const buttonRect = button.getBoundingClientRect();
-      // Centre the popover on its button, then clamp so it cannot hang off the
-      // edge of a narrow window.
-      const half = 134; // half of the popover's 268px width
-      const left = buttonRect.left + buttonRect.width / 2 - (mountRect?.left ?? 0);
-      const maxLeft = (mountRect?.width ?? window.innerWidth) - half - 12;
-      this.popover.style.left = `${Math.min(Math.max(left, half + 12), maxLeft)}px`;
-      // The spring grows out of the button, so the origin tracks how far the
-      // popover had to be nudged to stay on screen.
-      const clampedCentre = Math.min(Math.max(left, half + 12), maxLeft);
-      this.popover.style.setProperty('--origin-x', `${half + (left - clampedCentre)}px`);
-    }
+    this.#positionPopover(toolId);
     this.popover.hidden = false;
   }
 
   closePopover() {
     this.popover.hidden = true;
+  }
+
+  /**
+   * Place the popover on the far side of the palette from the page, whichever
+   * edge the palette is docked to, and spring it out of the button that opened
+   * it — the visual link is what makes it feel attached rather than summoned.
+   */
+  #positionPopover(toolId) {
+    const bounds = this.mount.getBoundingClientRect();
+    const bar = this.el.getBoundingClientRect();
+    const button = this.buttons.get(toolId)?.getBoundingClientRect();
+    // The popover keeps layout while hidden (opacity, not display), so it can
+    // be measured before it is shown.
+    const width = this.popover.offsetWidth || 268;
+    const height = this.popover.offsetHeight || 200;
+    const gap = 12;
+    const pad = 12;
+    const dock = this.tools.dock || 'bottom';
+
+    let left;
+    let top;
+    if (dock === 'left' || dock === 'right') {
+      const centre = (button ? button.top + button.height / 2 : bar.top + bar.height / 2) - bounds.top;
+      top = centre - height / 2;
+      left = dock === 'left' ? bar.right - bounds.left + gap : bar.left - bounds.left - width - gap;
+    } else {
+      const centre = (button ? button.left + button.width / 2 : bar.left + bar.width / 2) - bounds.left;
+      left = centre - width / 2;
+      top = dock === 'top' ? bar.bottom - bounds.top + gap : bar.top - bounds.top - height - gap;
+    }
+
+    const finalLeft = clamp(left, pad, Math.max(pad, bounds.width - width - pad));
+    const finalTop = clamp(top, pad, Math.max(pad, bounds.height - height - pad));
+    this.popover.style.left = `${finalLeft}px`;
+    this.popover.style.top = `${finalTop}px`;
+
+    const anchorX = button ? button.left + button.width / 2 - bounds.left : finalLeft + width / 2;
+    const anchorY = button ? button.top + button.height / 2 - bounds.top : finalTop + height / 2;
+    this.popover.style.setProperty('--origin-x', `${clamp(anchorX - finalLeft, 0, width)}px`);
+    this.popover.style.setProperty('--origin-y', `${clamp(anchorY - finalTop, 0, height)}px`);
   }
 
   #popoverFor(toolId) {

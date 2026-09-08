@@ -298,27 +298,16 @@ button {
   background: var(--bg);
   overscroll-behavior: contain;
   scroll-behavior: auto;
-  /* Room for the floating toolbar so the last page is never trapped under it. */
-  padding-bottom: 108px;
+  /* Clearance for the floating palette is set by PdfView.setEdgeInsets, which
+   * follows whichever edge the palette is docked to. */
   touch-action: pan-x pan-y pinch-zoom;
 }
 
-.viewer.tool-pen,
-.viewer.tool-highlighter {
-  cursor: crosshair;
-}
-
-.viewer.tool-eraser {
-  cursor: cell;
-}
-
-.viewer.tool-lasso {
-  cursor: crosshair;
-}
-
-.viewer.tool-text,
-.viewer.tool-note {
-  cursor: copy;
+/* Tools that draw their own nib hide the platform cursor entirely; the ring
+ * below stands in for it. Set by BrushCursor so the two can never disagree. */
+.viewer.hide-cursor,
+.viewer.hide-cursor * {
+  cursor: none;
 }
 
 .viewer.tool-hand {
@@ -577,14 +566,139 @@ button {
 }
 
 /* ==========================================================================
+   Zoom menu
+   ========================================================================== */
+
+.zoom-menu {
+  position: fixed;
+  min-width: 168px;
+  padding: 6px;
+  border-radius: var(--radius);
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 0.5px solid var(--glass-rim);
+  box-shadow: var(--glass-shadow);
+  z-index: 65;
+  opacity: 0;
+  transform: translateY(-6px) scale(0.97);
+  transform-origin: top right;
+  transition:
+    opacity var(--fast) var(--spring),
+    transform var(--medium) var(--spring-out);
+}
+
+.zoom-menu.on {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+.zoom-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  width: 100%;
+  padding: 6px 10px;
+  border-radius: 7px;
+  font-size: 12.5px;
+  color: var(--label);
+  transition: background var(--fast) var(--spring);
+}
+
+.zoom-item:hover {
+  background: color-mix(in srgb, var(--accent) 88%, transparent);
+  color: #fff;
+}
+
+.zoom-item:hover kbd {
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.zoom-item.on {
+  font-weight: 600;
+}
+
+/* A tick in the gutter marks the level currently in use. */
+.zoom-item.on::before {
+  content: '✓';
+  position: absolute;
+  margin-left: -14px;
+  font-size: 11px;
+}
+
+.zoom-item kbd {
+  font: inherit;
+  font-size: 11px;
+  color: var(--label-tertiary);
+}
+
+.zoom-rule {
+  height: 0.5px;
+  margin: 5px 8px;
+  background: var(--separator);
+}
+
+/* ==========================================================================
+   Brush cursor — a true-size nib in place of a crosshair
+   ========================================================================== */
+
+.brush-cursor {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: var(--cursor-size, 10px);
+  height: var(--cursor-size, 10px);
+  border-radius: 50%;
+  background: var(--cursor-color, transparent);
+  pointer-events: none;
+  z-index: 60;
+  opacity: 0;
+  /* Only the fade is animated. Transitioning transform would make the cursor
+   * lag behind the pointer, which reads as input latency. */
+  transition: opacity 90ms linear;
+  /* A light and a dark ring together, so the nib stays visible on a white page
+   * and on the dark surround alike, whatever colour is loaded. */
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.9),
+    0 0 0 2px rgba(0, 0, 0, 0.45);
+}
+
+.brush-cursor.on {
+  opacity: 1;
+}
+
+.brush-cursor.is-highlighter {
+  /* Chisel nib: square-ish, and translucent like the ink it lays down. */
+  border-radius: 3px;
+  opacity: 0;
+}
+
+.brush-cursor.is-highlighter.on {
+  opacity: 0.55;
+}
+
+.brush-cursor.is-eraser {
+  background: rgba(255, 255, 255, 0.14);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.55),
+    0 0 0 2px rgba(255, 255, 255, 0.85);
+}
+
+.brush-cursor.is-precise {
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.95),
+    0 0 0 2.5px rgba(0, 0, 0, 0.5);
+}
+
+/* ==========================================================================
    The floating tool palette
    ========================================================================== */
 
 .toolbar {
   position: absolute;
-  bottom: 22px;
-  left: 50%;
-  transform: translateX(-50%);
+  /* left/top are written by Toolbar.applyDock — the palette can be dragged to
+   * any edge so it never permanently covers part of the page. */
   display: flex;
   align-items: center;
   gap: 2px;
@@ -629,8 +743,65 @@ button {
 
 .toolbar.hidden {
   opacity: 0;
-  transform: translateX(-50%) translateY(20px) scale(0.96);
+  transform: translateY(20px) scale(0.96);
   pointer-events: none;
+}
+
+/* Vertical when docked to a side. */
+.toolbar.vertical {
+  flex-direction: column;
+}
+
+.toolbar.vertical .divider {
+  width: 24px;
+  height: 1px;
+  margin: 5px 0;
+}
+
+.toolbar.dragging {
+  /* No easing while it follows the pointer, or it lags behind the cursor. */
+  transition: none;
+  box-shadow:
+    0 0 0 0.5px var(--glass-rim),
+    0 22px 50px rgba(0, 0, 0, 0.34);
+  cursor: grabbing;
+}
+
+/* The drag handle. Three dots, the universal "pick this up" affordance. */
+.tool-grip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  width: 18px;
+  height: 42px;
+  flex: 0 0 auto;
+  border-radius: var(--radius-pill);
+  cursor: grab;
+  touch-action: none;
+  transition: background var(--fast) var(--spring);
+}
+
+.toolbar.vertical .tool-grip {
+  flex-direction: row;
+  width: 42px;
+  height: 18px;
+}
+
+.tool-grip:hover {
+  background: color-mix(in srgb, var(--label) 8%, transparent);
+}
+
+.tool-grip:active {
+  cursor: grabbing;
+}
+
+.tool-grip span {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--label-tertiary);
 }
 
 .tool {
@@ -709,8 +880,8 @@ button {
 
 .popover {
   position: absolute;
-  bottom: 78px;
-  left: 50%;
+  /* left/top are written by Toolbar, which places it on the far side of the
+   * palette from the page whichever edge the palette is docked to. */
   padding: 14px;
   width: 268px;
   border-radius: var(--radius-lg);
@@ -721,22 +892,24 @@ button {
   box-shadow: var(--glass-shadow);
   z-index: 31;
   isolation: isolate;
-  transform-origin: var(--origin-x, 50%) calc(100% + 22px);
+  transform-origin: var(--origin-x, 50%) var(--origin-y, 100%);
   transition:
     opacity var(--fast) var(--spring),
     transform var(--medium) var(--spring-out);
 }
 
+/* Kept in layout while hidden so it can be measured before being shown, and so
+ * the spring animates rather than popping in. */
 .popover[hidden] {
   display: block !important;
   opacity: 0;
-  transform: translateX(-50%) scale(0.86);
+  transform: scale(0.86);
   pointer-events: none;
 }
 
 .popover:not([hidden]) {
   opacity: 1;
-  transform: translateX(-50%) scale(1);
+  transform: scale(1);
 }
 
 .popover-title {

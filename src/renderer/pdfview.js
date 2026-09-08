@@ -16,9 +16,13 @@ import { createObjectElement, defaultTextObject, defaultNoteObject, focusObject 
 
 pdfjs.GlobalWorkerOptions.workerSrc = new URL('pdf.worker.mjs', document.baseURI).href;
 
-const MIN_SCALE = 0.2;
-const MAX_SCALE = 8;
+const MIN_SCALE = 0.1;
+const MAX_SCALE = 10;
 const PAGE_GAP = 18;
+const PAGE_PAD = 24;
+
+/** Offered by the zoom menu. */
+export const ZOOM_PRESETS = [0.5, 0.75, 1, 1.25, 1.5, 2, 3, 4];
 
 const clamp = (value, lo, hi) => (value < lo ? lo : value > hi ? hi : value);
 
@@ -40,6 +44,9 @@ export class PdfView extends EventTarget {
     this.pageEls = [];
     this.selection = { pageIndex: -1, strokeIds: new Set(), objectIds: new Set() };
     this.dpr = Math.min(window.devicePixelRatio || 1, 3);
+    // Clearance reserved around the page strip, so the floating palette never
+    // permanently covers content. Written by setEdgeInsets.
+    this.insets = { top: 0, right: 0, bottom: 0, left: 0 };
 
     this.pagesEl = document.createElement('div');
     this.pagesEl.className = 'pages';
@@ -192,7 +199,10 @@ export class PdfView extends EventTarget {
       el.style.width = `${width}px`;
       el.style.height = `${height}px`;
     }
+    // Written from the same constants the scroll maths uses, so the two can
+    // never disagree about where a page actually sits.
     this.pagesEl.style.gap = `${PAGE_GAP}px`;
+    this.pagesEl.style.padding = `${PAGE_PAD}px`;
   }
 
   // --- coordinate mapping --------------------------------------------------
@@ -654,15 +664,121 @@ export class PdfView extends EventTarget {
     this.container.addEventListener('pointercancel', drop);
   }
 
+  // --- layout arithmetic ---------------------------------------------------
+  //
+  // Page positions are computed from the same constants the CSS uses rather
+  // than measured. Reading getBoundingClientRect for every page on every wheel
+  // tick forced a synchronous layout each time, which is what made zooming
+  // stutter on longer documents.
+
   /**
-   * Zoom about a screen point, keeping the page content under that point
-   * exactly where it is. Anchoring on the page under the cursor (rather than on
-   * scroll offsets) stays exact regardless of gaps and centring.
+   * Reserve space around the page strip. The floating palette docks to an edge,
+   * and that edge needs clearance or the palette sits on top of the document.
+   * The view owns this rather than the caller styling the element directly, so
+   * the scroll arithmetic below can never fall out of step with the padding.
+   */
+  setEdgeInsets({ top = 0, right = 0, bottom = 0, left = 0 } = {}) {
+    this.insets = { top, right, bottom, left };
+    this.container.style.padding = `${top}px ${right}px ${bottom}px ${left}px`;
+    this.applySizes();
+    if (this.fitMode) this.applyFit(this.fitMode);
+  }
+
+  /** Usable width inside the container, discounting the reserved edges. */
+  #innerWidth() {
+    return this.container.clientWidth - this.insets.left - this.insets.right;
+  }
+
+  /** Width of the scroll content: the widest page, or the viewport if wider. */
+  contentWidth() {
+    let widest = 0;
+    for (let index = 0; index < this.pageEls.length; index += 1) {
+      const { width } = this.displaySize(index);
+      if (width > widest) widest = width;
+    }
+    return Math.max(widest, this.#innerWidth() - PAGE_PAD * 2);
+  }
+
+  /** Top of a page within the scroll content. */
+  pageOffsetTop(index) {
+    let top = PAGE_PAD + this.insets.top;
+    for (let i = 0; i < index; i += 1) top += this.displaySize(i).height + PAGE_GAP;
+    return top;
+  }
+
+  /** Left of a page within the scroll content; pages are centred on the strip. */
+  pageOffsetLeft(index, contentWidth = this.contentWidth()) {
+    return PAGE_PAD + this.insets.left + (contentWidth - this.displaySize(index).width) / 2;
+  }
+
+  /** Which page a scroll-content point falls on, and where on that page. */
+  #locate(contentX, contentY) {
+    const count = this.pageEls.length;
+    let top = PAGE_PAD + this.insets.top;
+    let index = count - 1;
+    for (let i = 0; i < count; i += 1) {
+      const { height } = this.displaySize(i);
+      if (contentY < top + height + PAGE_GAP / 2 || i === count - 1) {
+        index = i;
+        break;
+      }
+      top += height + PAGE_GAP;
+    }
+    return {
+      index,
+      localX: contentX - this.pageOffsetLeft(index),
+      localY: contentY - top,
+    };
+  }
+
+  // --- zoom ----------------------------------------------------------------
+
+  /**
+   * Zoom about a screen point. Wheel and pinch events arrive far faster than
+   * the display refreshes, so they are accumulated and applied once per frame —
+   * the zoom still tracks the gesture exactly, but costs one relayout a frame
+   * instead of one per event.
    */
   zoomBy(factor, clientX, clientY) {
-    const next = clamp(this.scale * factor, MIN_SCALE, MAX_SCALE);
-    if (Math.abs(next - this.scale) < 1e-4) return;
-    this.setScale(next, clientX, clientY);
+    this._pendingZoom = (this._pendingZoom ?? 1) * factor;
+    this._zoomAnchor = { x: clientX, y: clientY };
+    if (this._zoomFrame) return;
+    this._zoomFrame = requestAnimationFrame(() => {
+      this._zoomFrame = 0;
+      const accumulated = this._pendingZoom ?? 1;
+      this._pendingZoom = 1;
+      const anchor = this._zoomAnchor ?? {};
+      this.setScale(this.scale * accumulated, anchor.x, anchor.y);
+    });
+  }
+
+  /**
+   * Ease to a target scale. Zoom is multiplicative, so the ramp is geometric:
+   * interpolating linearly from 100% to 400% would crawl through the low end
+   * and then leap through the high end.
+   */
+  zoomTo(target, { clientX, clientY, animate = true } = {}) {
+    const to = clamp(target, MIN_SCALE, MAX_SCALE);
+    const from = this.scale;
+    cancelAnimationFrame(this._zoomAnimation);
+    if (Math.abs(to - from) < 1e-4) return;
+
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (!animate || reduced) {
+      this.setScale(to, clientX, clientY);
+      return;
+    }
+
+    const started = performance.now();
+    const duration = 200;
+    const ratio = to / from;
+    const step = (now) => {
+      const t = Math.min(1, (now - started) / duration);
+      const eased = 1 - (1 - t) ** 3;
+      this.setScale(from * ratio ** eased, clientX, clientY);
+      if (t < 1) this._zoomAnimation = requestAnimationFrame(step);
+    };
+    this._zoomAnimation = requestAnimationFrame(step);
   }
 
   setScale(next, clientX, clientY) {
@@ -671,49 +787,32 @@ export class PdfView extends EventTarget {
       this.scale = scale;
       return;
     }
+    if (Math.abs(scale - this.scale) < 1e-4) return;
+
     const containerRect = this.container.getBoundingClientRect();
     const anchorX = clientX ?? containerRect.left + this.container.clientWidth / 2;
     const anchorY = clientY ?? containerRect.top + this.container.clientHeight / 2;
 
-    // Find the page under the anchor, and the point on it the user is looking
-    // at. Anchoring on page content rather than on raw scroll offsets stays
-    // exact no matter how the pages are centred or spaced.
-    let anchorIndex = this.currentPage;
-    for (let index = 0; index < this.pageEls.length; index += 1) {
-      const rect = this.pageEls[index].getBoundingClientRect();
-      if (anchorY >= rect.top && anchorY <= rect.bottom) {
-        anchorIndex = index;
-        break;
-      }
-    }
-    const anchorPoint = this.toPage(anchorIndex, anchorX, anchorY);
+    // The anchor, in scroll-content coordinates, and the page point under it.
+    const offsetX = anchorX - containerRect.left;
+    const offsetY = anchorY - containerRect.top;
+    const before = this.#locate(this.container.scrollLeft + offsetX, this.container.scrollTop + offsetY);
 
+    const growth = scale / this.scale;
     this.scale = scale;
     this.fitMode = null;
     this.applySizes();
 
-    // Put that same page point back under the anchor at the new scale.
-    const el = this.pageEls[anchorIndex];
-    const origin = this.#offsetWithinScroller(el);
-    const { left, top } = this.toClientOffset(anchorIndex, anchorPoint.x, anchorPoint.y);
-    this.container.scrollTop = origin.top + top - (anchorY - containerRect.top);
-    this.container.scrollLeft = origin.left + left - (anchorX - containerRect.left);
+    // Put the same point on the same page back under the anchor. Page-local
+    // offsets scale with the zoom; the padding and gaps around them do not,
+    // which is exactly why this is computed rather than simply multiplied.
+    const contentWidth = this.contentWidth();
+    this.container.scrollTop = this.pageOffsetTop(before.index) + before.localY * growth - offsetY;
+    this.container.scrollLeft =
+      this.pageOffsetLeft(before.index, contentWidth) + before.localX * growth - offsetX;
 
     this.#scheduleReraster();
     this.dispatchEvent(new CustomEvent('zoom', { detail: { scale: this.scale } }));
-  }
-
-  /** Offset of a page element within the scrolling container's content box. */
-  #offsetWithinScroller(el) {
-    let top = 0;
-    let left = 0;
-    let node = el;
-    while (node && node !== this.container) {
-      top += node.offsetTop;
-      left += node.offsetLeft;
-      node = node.offsetParent;
-    }
-    return { top, left };
   }
 
   // Re-rasterising every page on every wheel tick would stutter; the CSS-sized
@@ -725,7 +824,7 @@ export class PdfView extends EventTarget {
     this._rerasterTimer = setTimeout(() => {
       this.pagesEl.classList.remove('zooming');
       this.refreshAll();
-    }, 160);
+    }, 120);
   }
 
   applyFit(mode) {
@@ -745,8 +844,9 @@ export class PdfView extends EventTarget {
     if (!pageWidth || !pageHeight) return;
     // 48px of breathing room either side; a document flush to the window edge
     // reads as cramped.
-    const availableWidth = this.container.clientWidth - 48;
-    const availableHeight = this.container.clientHeight - 48;
+    const availableWidth = this.#innerWidth() - PAGE_PAD * 2;
+    const availableHeight =
+      this.container.clientHeight - this.insets.top - this.insets.bottom - PAGE_PAD * 2;
     const scale =
       mode === 'width' ? availableWidth / pageWidth : Math.min(availableWidth / pageWidth, availableHeight / pageHeight);
     this.scale = clamp(scale, MIN_SCALE, MAX_SCALE);

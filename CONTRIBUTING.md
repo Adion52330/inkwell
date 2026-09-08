@@ -20,16 +20,23 @@ npm start
 npm test
 ```
 
-Three suites, all of which check rendered output rather than internal state:
+Five suites, all of which check rendered output rather than internal state:
 
 | Suite | What it proves |
 | --- | --- |
 | `npm run test:export` | Ink exported to a flattened PDF lands at the exact page coordinates it was drawn at, including on a `/Rotate 90` page. Rasterises with `pdftoppm` and inspects pixels. |
 | `npm run test:live-stroke` | The in-progress stroke is painted where the pointer is, and does not move when the pointer is released. Drives a real drag over the DevTools Protocol and compares two frames. |
-| `npm run test:objects` | Shapes, text boxes and sticky notes can be removed, and stay removed after a repaint. |
+| `npm run test:objects` | Shapes, text boxes and sticky notes can be removed, stay removed after a repaint, and return on undo. |
+| `npm run test:zoom` | Zoom anchors on the point under the pointer, actually scales the page, and the preset menu applies a level. |
+| `npm run test:unsaved` | Closing with unsaved ink is held for confirmation; closing a saved document is not. |
+
+`scripts/lib/cdp.mjs` is the shared harness — launching the app with a
+throwaway profile, driving real input, reading back the ink canvas — and
+`scripts/lib/fixture.mjs` seeds a known sidecar. A new test is usually a few
+lines on top of those.
 
 They need `pdftoppm` (poppler-utils), Python 3 with Pillow, and a display for
-the two that launch the app (`xvfb-run -a npm test` works headless).
+the four that launch the app (`xvfb-run -a npm test` works headless).
 
 **Please test against rendered output, not against the maths.** Every
 coordinate bug this project has had would have passed a unit test written from
@@ -66,6 +73,9 @@ A few invariants worth knowing before you change things:
   trigger `view.renderObjects(page)` — otherwise undo won't bring it back.
 - **Nothing may block the input path.** Pointer samples are queued and flushed
   once per animation frame. If you find yourself doing work per event, don't.
+- **Layout is computed, not measured.** `PdfView` derives page positions from
+  its own constants and the edge insets. Reading layout back from the DOM inside
+  a zoom or scroll handler reintroduces the stutter that motivated this.
 
 ## Style
 

@@ -8,6 +8,9 @@
 //
 // Usage: node scripts/screenshot.mjs <out.png> [pdf] [--wait ms] [--dark|--light]
 //                                     [--click <css-selector>]... [--freeze]
+//                                     [--move <x,y>]
+//
+// --move parks the pointer, so cursor-dependent UI (the brush nib) is captured.
 //
 // --click drives the UI before capturing, so states that only exist after
 // interaction (an open sidebar, an open tool popover) can be screenshotted.
@@ -23,6 +26,8 @@ const settleMs = waitArg !== -1 ? Number(process.argv[waitArg + 1]) : 3500;
 const dark = process.argv.includes('--dark');
 const light = process.argv.includes('--light');
 const freeze = process.argv.includes('--freeze');
+const moveArg = process.argv.indexOf('--move');
+const move = moveArg !== -1 ? process.argv[moveArg + 1].split(',').map(Number) : null;
 const clicks = process.argv.reduce(
   (acc, arg, i) => (arg === '--click' && process.argv[i + 1] ? [...acc, process.argv[i + 1]] : acc),
   []
@@ -130,6 +135,18 @@ async function main() {
       if (status !== 'ok') console.error(`click ${selector}: ${status}`);
       // Let the spring animations settle before the shutter.
       await sleep(700);
+    }
+
+    if (move) {
+      // Real pointer input, so the brush cursor tracks it the way it would for
+      // a physical mouse.
+      await send('Input.dispatchMouseEvent', {
+        type: 'mouseMoved',
+        x: move[0],
+        y: move[1],
+        pointerType: 'mouse',
+      });
+      await sleep(300);
     }
 
     // Surface any renderer errors — a blank screenshot is otherwise silent.

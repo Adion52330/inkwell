@@ -1,10 +1,11 @@
 // Application wiring: document lifecycle, autosave, commands and shortcuts.
 
 import { Store } from './store.js';
-import { PdfView } from './pdfview.js';
+import { PdfView, ZOOM_PRESETS } from './pdfview.js';
 import { InkEngine } from './ink.js';
 import { Toolbar } from './ui/toolbar.js';
 import { Thumbnails } from './ui/thumbnails.js';
+import { BrushCursor } from './ui/cursor.js';
 import { icon } from './ui/icons.js';
 import { buildAnnotatedPdf, suggestExportName } from './export.js';
 
@@ -27,6 +28,9 @@ const defaults = {
   textColor: '#1C1C1E',
   fontSize: 15,
   noteColor: '#FFD60A',
+  // Where the floating palette sits, and how far along that edge.
+  dock: 'bottom',
+  dockOffset: 0.5,
 };
 
 const tools = { ...defaults, ...loadSettings() };
@@ -66,6 +70,7 @@ const view = new PdfView({ container: viewerEl, store, tools });
 const ink = new InkEngine({ viewer: viewerEl, store, tools, view });
 const thumbs = new Thumbnails({ mount: bodyEl, store, view });
 const toolbar = new Toolbar({ mount: bodyEl, tools });
+const brushCursor = new BrushCursor({ viewer: viewerEl, tools, view });
 
 // The sidebar must sit before the viewer in the flex row.
 bodyEl.insertBefore(thumbs.el, viewerEl);
@@ -95,12 +100,93 @@ $('btn-open').addEventListener('click', () => openViaDialog());
 $('btn-open-big').addEventListener('click', () => openViaDialog());
 $('btn-undo').addEventListener('click', () => command('undo'));
 $('btn-redo').addEventListener('click', () => command('redo'));
-$('btn-zoom-in').addEventListener('click', () => view.zoomBy(1.25));
-$('btn-zoom-out').addEventListener('click', () => view.zoomBy(0.8));
+$('btn-zoom-in').addEventListener('click', () => stepZoom(1));
+$('btn-zoom-out').addEventListener('click', () => stepZoom(-1));
 $('btn-fit-width').addEventListener('click', () => view.applyFit('width'));
 $('btn-export').addEventListener('click', () => exportDocument());
 $('btn-sidebar').addEventListener('click', () => toggleSidebar());
-zoomEl.addEventListener('click', () => view.setScale(1));
+zoomEl.addEventListener('click', () => toggleZoomMenu());
+
+/**
+ * Step to the next standard zoom level rather than multiplying blindly, so the
+ * button lands on round numbers instead of drifting to 137%.
+ */
+function stepZoom(direction) {
+  const current = view.scale;
+  if (direction > 0) {
+    const next = ZOOM_PRESETS.find((preset) => preset > current + 1e-3);
+    view.zoomTo(next ?? current * 1.25);
+  } else {
+    const previous = [...ZOOM_PRESETS].reverse().find((preset) => preset < current - 1e-3);
+    view.zoomTo(previous ?? current * 0.8);
+  }
+}
+
+// --- zoom menu --------------------------------------------------------------
+
+const zoomMenu = document.createElement('div');
+zoomMenu.className = 'zoom-menu';
+zoomMenu.hidden = true;
+document.body.append(zoomMenu);
+
+function buildZoomMenu() {
+  zoomMenu.replaceChildren();
+  const item = (label, detail, onPick, isCurrent = false) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = `zoom-item${isCurrent ? ' on' : ''}`;
+    const name = document.createElement('span');
+    name.textContent = label;
+    button.append(name);
+    if (detail) {
+      const hint = document.createElement('kbd');
+      hint.textContent = detail;
+      button.append(hint);
+    }
+    button.addEventListener('click', () => {
+      closeZoomMenu();
+      onPick();
+    });
+    zoomMenu.append(button);
+  };
+
+  item('Fit width', 'Ctrl 1', () => view.applyFit('width'), view.fitMode === 'width');
+  item('Fit page', 'Ctrl 2', () => view.applyFit('page'), view.fitMode === 'page');
+  const rule = document.createElement('div');
+  rule.className = 'zoom-rule';
+  zoomMenu.append(rule);
+  for (const preset of ZOOM_PRESETS) {
+    item(
+      `${Math.round(preset * 100)}%`,
+      preset === 1 ? 'Ctrl 0' : '',
+      () => view.zoomTo(preset),
+      !view.fitMode && Math.abs(view.scale - preset) < 0.005
+    );
+  }
+}
+
+function toggleZoomMenu() {
+  if (!zoomMenu.hidden) return closeZoomMenu();
+  buildZoomMenu();
+  const rect = zoomEl.getBoundingClientRect();
+  zoomMenu.hidden = false;
+  // Right-aligned to the readout, and clamped so it cannot run off the edge.
+  const width = zoomMenu.offsetWidth;
+  zoomMenu.style.top = `${rect.bottom + 6}px`;
+  zoomMenu.style.left = `${Math.min(Math.max(8, rect.right - width), window.innerWidth - width - 8)}px`;
+  requestAnimationFrame(() => zoomMenu.classList.add('on'));
+}
+
+function closeZoomMenu() {
+  zoomMenu.classList.remove('on');
+  zoomMenu.hidden = true;
+}
+
+document.addEventListener('pointerdown', (event) => {
+  if (zoomMenu.hidden) return;
+  if (zoomMenu.contains(event.target) || event.target === zoomEl) return;
+  closeZoomMenu();
+});
 
 function toggleSidebar() {
   const open = thumbs.toggle();
@@ -135,6 +221,9 @@ async function openViaDialog() {
 }
 
 async function openDocument(filePath) {
+  if (store.doc && store.doc.path !== filePath) {
+    if ((await confirmUnsaved()) === 'cancel') return;
+  }
   try {
     const file = await api.readPdf(filePath);
     // pdf.js takes ownership of the buffer it is given, so the exporter needs
@@ -183,8 +272,31 @@ function updateSubtitle() {
   } · ${saved}`;
 }
 
+/**
+ * Put unsaved work to the user before it would be lost.
+ * Returns 'save' | 'discard' | 'cancel'; 'save' has already been written by the
+ * time this resolves. Discarding simply leaves the sidecar as it was on disk —
+ * the last saved state — so nothing has to be rolled back in memory.
+ */
+async function confirmUnsaved() {
+  if (!store.doc || !store.isDirty) return 'save';
+  const choice = await api.confirmDiscard(store.doc.name);
+  if (choice === 'save') {
+    const ok = await flushSave();
+    // A failed write must not be mistaken for a clean exit.
+    if (!ok) return 'cancel';
+  }
+  if (choice === 'discard') {
+    // Stop the pending autosave from writing the changes anyway.
+    clearTimeout(saveTimer);
+    store.markSaved();
+    api.setDirty(false);
+  }
+  return choice;
+}
+
 async function closeDocument() {
-  await flushSave();
+  if ((await confirmUnsaved()) === 'cancel') return false;
   await view.unload();
   store.close();
   originalBytes = null;
@@ -194,6 +306,7 @@ async function closeDocument() {
   document.title = 'Inkwell';
   updateSubtitle();
   renderRecents();
+  return true;
 }
 
 // --- autosave ---------------------------------------------------------------
@@ -336,13 +449,13 @@ async function command(name, payload) {
       applyToolCursor();
       break;
     case 'zoom-in':
-      view.zoomBy(1.25);
+      stepZoom(1);
       break;
     case 'zoom-out':
-      view.zoomBy(0.8);
+      stepZoom(-1);
       break;
     case 'zoom-reset':
-      view.setScale(1);
+      view.zoomTo(1);
       break;
     case 'fit-width':
       view.applyFit('width');
@@ -367,12 +480,19 @@ async function command(name, payload) {
       await api.clearRecents();
       renderRecents();
       break;
-    case 'flush-and-close':
-      // The main process is holding the window open until the save lands.
+    case 'confirm-close': {
+      // The main process has vetoed the close and is waiting on us.
+      const choice = await confirmUnsaved();
+      if (choice === 'cancel') {
+        // Re-arm the guard: the veto consumed nothing, but the main process
+        // needs to know the document is still dirty for the next attempt.
+        api.setDirty(store.isDirty);
+        break;
+      }
       closing = true;
-      await flushSave();
       api.closeNow();
       break;
+    }
     default:
       break;
   }
@@ -410,6 +530,7 @@ window.addEventListener('keydown', (event) => {
   if (event.key === 'Escape') {
     ink.clearSelection();
     toolbar.closePopover();
+    closeZoomMenu();
     return;
   }
   if ((event.key === 'Delete' || event.key === 'Backspace') && ink.selection.pageIndex >= 0) {
@@ -447,7 +568,10 @@ window.addEventListener('keyup', (event) => {
 });
 
 function applyToolCursor() {
+  // Rewriting className drops the class BrushCursor manages, so it always gets
+  // the last word.
   viewerEl.className = `viewer tool-${tools.tool}`;
+  brushCursor.update();
 }
 applyToolCursor();
 
@@ -456,7 +580,21 @@ toolbar.addEventListener('tool', () => {
   ink.clearSelection();
   saveSettings();
 });
-toolbar.addEventListener('settings', saveSettings);
+toolbar.addEventListener('settings', () => {
+  saveSettings();
+  // The nib shows the live size and colour, so it has to follow the sliders.
+  brushCursor.update();
+});
+
+// Reserve room on whichever edge the palette is docked to, so it never sits on
+// top of the page. The clearance is a little more than the palette itself, to
+// leave the page visibly clear of it rather than flush against it.
+const PALETTE_CLEARANCE = 104;
+toolbar.addEventListener('dock', (event) => {
+  const side = event.detail.dock;
+  view.setEdgeInsets({ [side]: PALETTE_CLEARANCE });
+});
+view.setEdgeInsets({ [tools.dock || 'bottom']: PALETTE_CLEARANCE });
 
 // --- panning ----------------------------------------------------------------
 
@@ -520,6 +658,8 @@ view.addEventListener('selection', (event) => {
 
 view.addEventListener('zoom', () => {
   zoomEl.textContent = `${Math.round(view.scale * 100)}%`;
+  // The nib is drawn at true size, so it scales with the page.
+  brushCursor.update();
 });
 view.addEventListener('page', (event) => {
   thumbs.setCurrent(event.detail.page);

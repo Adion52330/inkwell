@@ -112,12 +112,12 @@ function createWindow() {
     win = null;
   });
 
-  // Unsaved-ink guard. The renderer autosaves on a debounce, so this only fires
-  // in the narrow window between a stroke and its save landing.
+  // Unsaved-ink guard. The close is vetoed and handed to the renderer, which
+  // puts the choice to the user and then calls back with window:close-now.
   win.on('close', (event) => {
     if (!rendererDirty) return;
     event.preventDefault();
-    win.webContents.send('menu', 'flush-and-close');
+    win.webContents.send('menu', 'confirm-close');
   });
 
   // Keep external links out of the app window.
@@ -303,12 +303,15 @@ ipcMain.handle('recents:clear', async () => {
 
 ipcMain.handle('dialog:confirmDiscard', async (_event, name) => {
   const { response } = await dialog.showMessageBox(win, {
-    type: 'question',
+    type: 'warning',
     buttons: ['Save', "Don't Save", 'Cancel'],
     defaultId: 0,
     cancelId: 2,
-    message: `Save your notes on ${name}?`,
-    detail: 'Your ink is stored alongside the PDF. The PDF itself is never modified.',
+    noLink: true,
+    message: `Save your changes to ${name}?`,
+    detail:
+      'Your ink is stored in a file alongside the PDF; the PDF itself is never ' +
+      'modified. If you don’t save, the changes made since the last save are lost.',
   });
   return ['save', 'discard', 'cancel'][response];
 });
