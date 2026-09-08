@@ -81,6 +81,7 @@ export class Store extends EventTarget {
     if (!this.doc || !sidecar || !Array.isArray(sidecar.pages)) return false;
     const mismatched = sidecar.hash && this.doc.hash && sidecar.hash !== this.doc.hash;
 
+    const pdfPageCount = this.doc.pages.length;
     this.doc.pages = sidecar.pages.map((page, index) => ({
       ...emptyPage(),
       ...page,
@@ -93,9 +94,11 @@ export class Store extends EventTarget {
       rotation: page.rotation || 0,
       inserted: page.inserted || this.doc.pages[index]?.inserted || false,
     }));
-    // A sidecar can describe more pages than the PDF has if pages were
-    // inserted; keep whichever list is longer so nothing is silently dropped.
-    while (this.doc.pages.length < (sidecar.pages?.length || 0)) this.doc.pages.push(emptyPage());
+    // The two page counts can legitimately disagree: a sidecar written after
+    // pages were inserted describes more, and one written before describes
+    // fewer. Grow to whichever is longer so neither the PDF's own pages nor a
+    // page of notes is ever dropped.
+    while (this.doc.pages.length < pdfPageCount) this.doc.pages.push(emptyPage());
     if (Array.isArray(sidecar.order)) this.doc.order = sidecar.order;
     if (Array.isArray(sidecar.sizes) && sidecar.sizes.length) this.doc.sizes = sidecar.sizes;
 
@@ -342,7 +345,11 @@ export class Store extends EventTarget {
     const at = afterIndex + 1;
     // A blank page borrows the geometry of the page it follows, so inserting
     // into an A4 document does not produce a stray Letter-sized sheet.
-    const size = { ...this.pageSize(Math.max(0, afterIndex)) };
+    // Copy only the dimensions, never the neighbour's viewport matrix: a blank
+    // page is unrotated, and inheriting a rotated page's transform would place
+    // its ink through the wrong mapping on export.
+    const neighbour = this.pageSize(Math.max(0, afterIndex));
+    const size = { width: neighbour.width, height: neighbour.height };
     const page = { ...emptyPage(), inserted: true, size };
     this.apply({
       structural: true,

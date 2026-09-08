@@ -23,5 +23,44 @@
     "electron": "^44.2.0",
     "electron-builder": "^26.15.3",
     "esbuild": "^0.28.2"
+  },
+  "build": {
+    "appId": "dev.inkwell.app",
+    "productName": "Inkwell",
+    "copyright": "MIT",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "dist/**/*",
+      "src/main/**/*",
+      "package.json",
+      "!node_modules/**/*"
+    ],
+    "linux": {
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": ["x64"]
+        }
+      ],
+      "category": "Office;Graphics;Viewer",
+      "icon": "build/icon.png",
+      "synopsis": "Read and annotate PDFs",
+      "description": "Open PDFs and write on them with a pressure-sensitive pen, highlighter, shapes and notes. Ink is stored beside the file so the original PDF is never modified.",
+      "desktop": {
+        "entry": {
+          "Name": "Inkwell",
+          "Comment": "Read and annotate PDFs",
+          "Categories": "Office;Graphics;Viewer;",
+          "MimeType": "application/pdf;",
+          "Keywords": "pdf;annotate;handwriting;notes;ink;"
+        }
+      }
+    },
+    "appImage": {
+      "artifactName": "${productName}-${version}-${arch}.AppImage"
+    }
   }
 }

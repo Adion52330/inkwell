@@ -136,6 +136,8 @@ export class InkEngine {
       moved: false,
       startX: x,
       startY: y,
+      downClientX: event.clientX,
+      downClientY: event.clientY,
     };
     this.gesture = gesture;
 
@@ -203,7 +205,14 @@ export class InkEngine {
         t: sample.timeStamp || event.timeStamp,
       });
     }
-    gesture.moved = true;
+    // A couple of pixels of jitter while clicking is not a drag. Text boxes and
+    // notes are placed only on a genuinely stationary release, so this has to
+    // measure real distance rather than latch on the first move event.
+    if (!gesture.moved) {
+      const dx = event.clientX - (gesture.downClientX ?? event.clientX);
+      const dy = event.clientY - (gesture.downClientY ?? event.clientY);
+      if (Math.hypot(dx, dy) > 4) gesture.moved = true;
+    }
     // Work is deferred to one rAF flush; handling every sample inline would
     // repaint far more often than the display can show.
     if (!this.pendingFrame) this.pendingFrame = requestAnimationFrame(this.flush);
