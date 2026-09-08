@@ -545,6 +545,13 @@ export class PdfView extends EventTarget {
         node.style.color = object.color;
       } else {
         node.style.setProperty('--note-color', object.color);
+        // The bubble is a fixed width in screen pixels, so near the right edge
+        // of a page it would hang off into the gutter. Flip it to open leftward
+        // instead, the way a real popover reflects off the edge.
+        const NOTE_BUBBLE_WIDTH = 232;
+        if (left + NOTE_BUBBLE_WIDTH > this.displaySize(index).width) {
+          node.classList.add('flip-left');
+        }
       }
       node.classList.toggle('selected', this.selection.objectIds.has(object.id));
       layer.append(node);

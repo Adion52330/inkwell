@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "description": "A PDF reader and annotator with a pressure-sensitive ink engine",
   "main": "src/main/main.js",
+  "desktopName": "inkwell.desktop",
   "author": "Adion52330",
   "license": "MIT",
   "private": true,
@@ -60,7 +61,8 @@
           "MimeType": "application/pdf;",
           "Keywords": "pdf;annotate;handwriting;notes;ink;"
         }
-      }
+      },
+      "syncDesktopName": true
     },
     "appImage": {
       "artifactName": "${productName}-${version}-${arch}.AppImage"

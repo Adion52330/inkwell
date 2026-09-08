@@ -7,7 +7,7 @@
 // so it works identically on X11, Wayland and headless CI.
 //
 // Usage: node scripts/screenshot.mjs <out.png> [pdf] [--wait ms] [--dark|--light]
-//                                     [--click <css-selector>]...
+//                                     [--click <css-selector>]... [--freeze]
 //
 // --click drives the UI before capturing, so states that only exist after
 // interaction (an open sidebar, an open tool popover) can be screenshotted.
@@ -22,13 +22,17 @@ const waitArg = process.argv.indexOf('--wait');
 const settleMs = waitArg !== -1 ? Number(process.argv[waitArg + 1]) : 3500;
 const dark = process.argv.includes('--dark');
 const light = process.argv.includes('--light');
+const freeze = process.argv.includes('--freeze');
 const clicks = process.argv.reduce(
   (acc, arg, i) => (arg === '--click' && process.argv[i + 1] ? [...acc, process.argv[i + 1]] : acc),
   []
 );
 
 const PORT = 9333;
-const electron = path.join(process.cwd(), 'node_modules/electron/dist/electron');
+// INKWELL_BIN points this at a packaged build (the AppImage) instead of the
+// development Electron, so the same smoke test covers both.
+const packaged = process.env.INKWELL_BIN;
+const electron = packaged || path.join(process.cwd(), 'node_modules/electron/dist/electron');
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -68,7 +72,10 @@ function cdp(ws) {
 }
 
 async function main() {
-  const args = ['.', `--remote-debugging-port=${PORT}`];
+  // A packaged build already knows its own app directory; only the development
+  // Electron needs to be pointed at one.
+  const args = packaged ? [] : ['.'];
+  args.push(`--remote-debugging-port=${PORT}`);
   if (pdf) args.push(pdf);
 
   const child = spawn(electron, args, {
@@ -90,6 +97,17 @@ async function main() {
     const send = cdp(ws);
 
     await send('Runtime.enable');
+
+    if (freeze) {
+      // The window opens under the real cursor, and a stray drag from the
+      // desktop lands as a stroke. Making the viewer inert keeps captures
+      // deterministic; toolbar clicks are dispatched directly and still work.
+      await send('Runtime.evaluate', {
+        expression: `(() => { const s = document.createElement('style');
+          s.textContent = '.viewer{pointer-events:none!important}';
+          document.head.append(s); })()`,
+      });
+    }
     if (dark || light) {
       await send('Emulation.setEmulatedMedia', {
         features: [{ name: 'prefers-color-scheme', value: dark ? 'dark' : 'light' }],

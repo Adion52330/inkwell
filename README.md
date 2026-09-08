@@ -11,6 +11,8 @@ low-latency, pressure-sensitive vector ink layer.
 beside it and stays fully re-editable. Exporting produces a separate flattened
 copy for sharing.
 
+![Inkwell annotating a PDF](docs/screenshot.png)
+
 ---
 
 ## Running it
@@ -21,14 +23,24 @@ npm run sample   # writes sample/sample.pdf to draw on
 npm start
 ```
 
+## Tests
+
+```bash
+npm run test:export
+```
+
+Draws a probe stroke at known page coordinates on every page of the sample,
+exports, rasterises the result and asserts the ink landed where it was drawn —
+including on the sample's `/Rotate 90` page.
+
 ## Building the AppImage
 
 ```bash
 npm run dist
 ```
 
-The result lands in `release/Inkwell-<version>-x64.AppImage`. Mark it executable
-and run it — no installation, no runtime dependencies beyond FUSE:
+The result lands in `release/Inkwell-<version>-x86_64.AppImage`. Mark it
+executable and run it — no installation, no runtime dependencies beyond FUSE:
 
 ```bash
 chmod +x release/Inkwell-*.AppImage
@@ -138,6 +150,13 @@ used to lay the page out. That is exact for rotated pages and for pages whose
 MediaBox does not start at the origin — the two cases where hand-rolled maths
 usually goes wrong. `sample/sample.pdf` deliberately includes a rotated page to
 exercise it.
+
+The exported file is the same drawing, not an approximation of it — the
+highlighter keeps its multiply blend so text stays readable, and a sticky note
+becomes a real PDF `/Text` annotation rather than a coloured square burned into
+the page:
+
+![The same page after export](docs/exported-page.png)
 
 ### Saving cannot corrupt your notes
 
