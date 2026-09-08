@@ -39,6 +39,48 @@ const wheelZoom = (send, x, y, deltaY) =>
 const readScale = (send) =>
   evaluate(send, `parseFloat(document.getElementById('zoom-readout').textContent) / 100`);
 
+/**
+ * The canvas must hold exactly one backing pixel per device pixel, and the page
+ * box must cover a whole number of device pixels.
+ *
+ * Either being off means the browser resamples a finished bitmap: rendered
+ * glyphs get scaled by a non-integer factor, which speckles thin stems and
+ * leaves stray dots between letters. Supersampling to 1.5x and letting the
+ * browser scale back down looked like a quality improvement and was in fact the
+ * cause of exactly that, which is why this is asserted rather than assumed.
+ */
+const PIXEL_FIT = `(() => {
+  const page = document.querySelector('.page[data-index="0"]');
+  const canvas = page.querySelector('.pdf-layer');
+  const style = getComputedStyle(canvas);
+  const cssW = parseFloat(style.width);
+  const cssH = parseFloat(style.height);
+  const dpr = window.devicePixelRatio;
+  return {
+    ratioW: canvas.width / cssW,
+    ratioH: canvas.height / cssH,
+    dpr,
+    wholeW: Math.abs(cssW * dpr - Math.round(cssW * dpr)) < 1e-6,
+    wholeH: Math.abs(cssH * dpr - Math.round(cssH * dpr)) < 1e-6,
+    cssW,
+  };
+})()`;
+
+function checkPixelFit(report, fit, when) {
+  const exact =
+    Math.abs(fit.ratioW - fit.dpr) < 1e-3 && Math.abs(fit.ratioH - fit.dpr) < 1e-3;
+  report.check(
+    `${when}: one canvas pixel per device pixel`,
+    exact,
+    `ratio ${fit.ratioW.toFixed(3)}x${fit.ratioH.toFixed(3)}, dpr ${fit.dpr}`
+  );
+  report.check(
+    `${when}: page covers whole device pixels`,
+    fit.wholeW && fit.wholeH,
+    `css width ${fit.cssW}`
+  );
+}
+
 async function main() {
   seedSidecar({ objects: [redRect({ x: 150, y: 380, x2: 330, y2: 470 })] });
   const report = createReporter();
@@ -51,6 +93,8 @@ async function main() {
 
     const startScale = await readScale(send);
     const anchor = start.centre;
+
+    checkPixelFit(report, await evaluate(send, PIXEL_FIT), 'at open');
 
     // --- zoom in about the marker -----------------------------------------
     for (let i = 0; i < 6; i += 1) {
@@ -65,6 +109,8 @@ async function main() {
       zoomedScale > startScale * 1.05,
       `${Math.round(startScale * 100)}% → ${Math.round(zoomedScale * 100)}%`
     );
+
+    checkPixelFit(report, await evaluate(send, PIXEL_FIT), 'zoomed in');
 
     const zoomed = await evaluate(send, FIND_RED());
     report.check('marker still on screen after zooming', (zoomed?.count ?? 0) > 0);

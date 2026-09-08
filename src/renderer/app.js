@@ -452,6 +452,11 @@ async function openDocument(filePath) {
     ink.clearSelection();
 
     search.reset();
+    // The main process records this file as recent as it reads it, so the
+    // cached list the overflow menu builds from is now a document behind.
+    // Without this refresh, the file you just opened never appears in Recent
+    // and neither does anything opened after it, until the app restarts.
+    renderRecents();
     welcomeEl.hidden = true;
     pageTotalEl.textContent = String(store.pageCount);
     showPageNumber(0);

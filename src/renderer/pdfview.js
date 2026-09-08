@@ -26,12 +26,20 @@ export const ZOOM_PRESETS = [0.5, 0.75, 1, 1.25, 1.5, 2, 3, 4];
 
 const clamp = (value, lo, hi) => (value < lo ? lo : value > hi ? hi : value);
 
-// On a 1x display, rasterising one canvas pixel per CSS pixel gives glyph edges
-// no room to antialias and text reads as soft. Rendering above the display's
-// density and letting the browser downsample restores that, at the cost of
-// memory - hence the budget below, which also keeps a page at extreme zoom from
-// asking for a canvas the GPU will refuse.
-const OVERSAMPLE = 1.5;
+// Text is rasterised at exactly the display's device pixel ratio, and the page
+// box is snapped so that lands on whole device pixels.
+//
+// Supersampling was tried here and made things visibly worse: rendering at 1.5x
+// and letting the browser scale back down resamples finished glyphs by a
+// non-integer factor, which speckles thin stems and leaves stray dots between
+// letters. pdf.js antialiases while it rasterises, and it can only do that
+// correctly if it draws at the resolution the pixels will be shown at. A
+// fractional CSS size has the same effect: a page 2332.28px wide cannot map 1:1
+// onto a device pixel grid, so the whole bitmap gets resampled.
+//
+// The budget below is the one case where the factor is allowed to fall under
+// the device ratio - a page at extreme zoom would otherwise ask for a canvas
+// the GPU refuses to allocate.
 const MAX_CANVAS_PIXELS = 36e6;
 const MAX_CANVAS_DIMENSION = 12000;
 
@@ -124,12 +132,30 @@ export class PdfView extends EventTarget {
     return { pageCount: this.pdfDoc.numPages, sizes };
   }
 
+  /**
+   * Tear a loaded document down.
+   *
+   * pdf.js 6 removed destroy() from the document proxy; teardown belongs to the
+   * loading task that produced it. Calling the old method threw, and because
+   * unload() runs at the start of load(), that meant opening a second document
+   * failed outright while the first stayed on screen.
+   */
+  async #destroyDocument(doc) {
+    try {
+      const task = doc?.loadingTask;
+      if (typeof task?.destroy === 'function') await task.destroy();
+      else if (typeof doc?.destroy === 'function') await doc.destroy();
+    } catch {
+      /* the document is being discarded either way */
+    }
+  }
+
   async unload() {
     if (this.pdfDoc) {
-      await this.pdfDoc.destroy().catch(() => {});
+      await this.#destroyDocument(this.pdfDoc);
       this.pdfDoc = null;
     }
-    for (const doc of this.sources.values()) await doc.destroy().catch(() => {});
+    for (const doc of this.sources.values()) await this.#destroyDocument(doc);
     this.sources.clear();
     this.sourceBytes.clear();
     this.observer.disconnect();
@@ -211,15 +237,46 @@ export class PdfView extends EventTarget {
     this.dispatchEvent(new CustomEvent('layout'));
   }
 
+  /**
+   * Round a CSS length so it covers a whole number of device pixels. A page box
+   * ending on a fraction of a pixel forces the browser to resample the canvas
+   * inside it, which is what turns crisp glyphs speckly.
+   */
+  #snap(value) {
+    return Math.max(1, Math.round(value * this.dpr)) / this.dpr;
+  }
+
+  /** How many PDF points the page spans horizontally, as displayed. */
+  #pointsAcross(index) {
+    const { width, height } = this.store.pageSize(index);
+    return (this.store.page(index)?.rotation || 0) % 180 !== 0 ? height : width;
+  }
+
   /** Displayed CSS size of a page, accounting for user rotation. */
   displaySize(index) {
     const { width, height } = this.store.pageSize(index);
     const rotation = this.store.page(index)?.rotation || 0;
     const swapped = rotation % 180 !== 0;
     return {
-      width: (swapped ? height : width) * this.scale,
-      height: (swapped ? width : height) * this.scale,
+      width: this.#snap((swapped ? height : width) * this.scale),
+      height: this.#snap((swapped ? width : height) * this.scale),
     };
+  }
+
+  /**
+   * CSS pixels per PDF point actually used for this page. Snapping makes this
+   * differ from `scale` by a fraction of a pixel, and everything converting
+   * between page and screen coordinates must use it, or ink lands slightly off
+   * the raster it was drawn against.
+   */
+  pageScale(index) {
+    const across = this.#pointsAcross(index);
+    return across ? this.displaySize(index).width / across : this.scale;
+  }
+
+  /** Device pixels per PDF point - the scale the page is rasterised at. */
+  rasterScale(index) {
+    return this.pageScale(index) * this.rasterFactor(index);
   }
 
   applySizes() {
@@ -255,8 +312,9 @@ export class PdfView extends EventTarget {
     const el = this.pageEls[index];
     if (!el) return { x: 0, y: 0 };
     const rect = el.getBoundingClientRect();
-    const cx = (clientX - rect.left) / this.scale;
-    const cy = (clientY - rect.top) / this.scale;
+    const scale = this.pageScale(index);
+    const cx = (clientX - rect.left) / scale;
+    const cy = (clientY - rect.top) / scale;
     const { width, height } = this.store.pageSize(index);
     switch (this.store.page(index)?.rotation || 0) {
       case 90:
@@ -273,7 +331,7 @@ export class PdfView extends EventTarget {
   /** Page space → client coordinates, for positioning DOM objects. */
   toClientOffset(index, x, y) {
     const { width, height } = this.store.pageSize(index);
-    const s = this.scale;
+    const s = this.pageScale(index);
     switch (this.store.page(index)?.rotation || 0) {
       case 90:
         return { left: (height - y) * s, top: x * s };
@@ -291,7 +349,7 @@ export class PdfView extends EventTarget {
    * ignore zoom, device pixel ratio and rotation entirely.
    */
   #setPageTransform(ctx, index) {
-    this.applyPageTransform(ctx, index, this.scale * this.rasterFactor(index));
+    this.applyPageTransform(ctx, index, this.rasterScale(index));
   }
 
   /**
@@ -319,13 +377,13 @@ export class PdfView extends EventTarget {
   /**
    * CSS pixels → backing-store pixels for a page.
    *
-   * Above the display density for smoother text, then pulled back if the page
-   * would exceed the canvas budget - a very deep zoom degrades gently instead
-   * of failing to allocate.
+   * The device pixel ratio, pulled back only if the page would exceed the
+   * canvas budget, so a very deep zoom degrades gently instead of failing to
+   * allocate.
    */
   rasterFactor(index) {
     const { width, height } = this.displaySize(index);
-    let factor = this.dpr < 1.5 ? this.dpr * OVERSAMPLE : this.dpr;
+    let factor = this.dpr;
     const area = width * height * factor * factor;
     if (area > MAX_CANVAS_PIXELS) factor *= Math.sqrt(MAX_CANVAS_PIXELS / area);
     const longest = Math.max(width, height) * factor;
@@ -375,7 +433,7 @@ export class PdfView extends EventTarget {
     const el = this.pageEls[index];
     if (!el) return;
     const canvas = el.querySelector('.pdf-layer');
-    const signature = `${this.scale.toFixed(3)}:${this.rasterFactor(index).toFixed(3)}:${
+    const signature = `${this.rasterScale(index).toFixed(4)}:${
       this.store.page(index)?.rotation || 0
     }`;
     if (el.dataset.rendered === signature) {
@@ -405,9 +463,16 @@ export class PdfView extends EventTarget {
         if (this.#resolveSize(index, page)) {
           this.applySizes();
           this.#sizeCanvas(canvas, index);
+          // A page turning out wider than assumed changes what "fit width"
+          // means, and the fit was computed before this page had ever been
+          // measured. Without this the zoom level silently changes under the
+          // reader moments after the document opens.
+          this.#scheduleRefit();
         }
         const rotation = (page.rotate + (this.store.page(index)?.rotation || 0)) % 360;
-        const viewport = page.getViewport({ scale: this.scale * this.rasterFactor(index), rotation });
+        // Rasterise at exactly the canvas's own resolution, so pdf.js draws the
+        // glyphs at the size they will actually be displayed.
+        const viewport = page.getViewport({ scale: this.rasterScale(index), rotation });
         const task = page.render({ canvasContext: ctx, viewport });
         el._renderTask = task;
         await task.promise;
@@ -551,6 +616,22 @@ export class PdfView extends EventTarget {
       // still render and still be drawable.
       console.warn(`[inkwell] no text layer for page ${index + 1}`, err);
     }
+  }
+
+  /**
+   * Re-apply the current fit once measurements settle.
+   *
+   * Deferred and coalesced: this is called from inside a page render, and
+   * re-fitting immediately would re-enter rendering from its own call stack.
+   */
+  #scheduleRefit() {
+    if (this._refitPending || !this.fitMode) return;
+    this._refitPending = true;
+    clearTimeout(this._refitTimer);
+    this._refitTimer = setTimeout(() => {
+      this._refitPending = false;
+      if (this.fitMode) this.applyFit(this.fitMode);
+    }, 60);
   }
 
   /**

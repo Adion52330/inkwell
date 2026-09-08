@@ -20,7 +20,7 @@ npm start
 npm test
 ```
 
-Seven suites, all of which check rendered output rather than internal state:
+Eight suites, all of which check rendered output rather than internal state:
 
 | Suite | What it proves |
 | --- | --- |
@@ -31,6 +31,7 @@ Seven suites, all of which check rendered output rather than internal state:
 | `npm run test:unsaved` | Closing with unsaved ink is held for confirmation; closing a saved document is not. |
 | `npm run test:text` | Text spans align with the glyphs beneath them, selection works, search highlights land on their match, and links navigate. |
 | `npm run test:sidebar` | Thumbnails keep their height when the list overflows, edit history records and travels, and search results group by page. |
+| `npm run test:open` | A second document opens while one is already open — the path that only breaks on the *second* open, which every single-document test misses. |
 
 `scripts/lib/cdp.mjs` is the shared harness - launching the app with a
 throwaway profile, driving real input, reading back the ink canvas - and
@@ -38,7 +39,7 @@ throwaway profile, driving real input, reading back the ink canvas - and
 lines on top of those.
 
 They need `pdftoppm` (poppler-utils), Python 3 with Pillow, and a display for
-the six that launch the app (`xvfb-run -a npm test` works headless).
+the seven that launch the app (`xvfb-run -a npm test` works headless).
 
 **Please test against rendered output, not against the maths.** Every
 coordinate bug this project has had would have passed a unit test written from

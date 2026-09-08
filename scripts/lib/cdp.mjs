@@ -22,7 +22,7 @@ export const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
  *
  * @returns {Promise<{send, close, child}>}
  */
-export async function launch({ port, pdf, args = [], settleMs = 4500 }) {
+export async function launch({ port, pdf, args = [], settleMs = 4500, profile: reuse } = {}) {
   const root = process.cwd();
   const binary = process.env.INKWELL_BIN || path.join(root, 'node_modules/electron/dist/electron');
   // Electron's postinstall does not always run - npm can be configured with
@@ -35,7 +35,9 @@ export async function launch({ port, pdf, args = [], settleMs = 4500 }) {
         'Run `npm run ensure:electron` to download it.'
     );
   }
-  const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'inkwell-profile-'));
+  // A caller can reuse a profile across launches, which is how a test gets
+  // recent files to exist in the second run.
+  const profile = reuse || fs.mkdtempSync(path.join(os.tmpdir(), 'inkwell-profile-'));
 
   // A packaged build already knows its own app directory; only the development
   // Electron needs pointing at one.

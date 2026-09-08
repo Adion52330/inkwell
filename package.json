@@ -13,18 +13,19 @@
     "start": "npm run build && electron .",
     "dev": "npm run build && electron . --dev",
     "sample": "node scripts/make-sample.js",
-    "dist": "npm run build && electron-builder --linux AppImage",
+    "dist": "npm run build && electron-builder --linux AppImage --publish never",
     "test:export": "node scripts/make-sample.js && esbuild scripts/test-export.js --bundle --platform=node --format=esm --outfile=dist/test-export.mjs --log-level=warning && node dist/test-export.mjs sample/sample.pdf dist/export-test.pdf && python3 scripts/check-export.py dist/export-test.pdf",
     "test:live-stroke": "node scripts/test-live-stroke.mjs --out dist/live-stroke && python3 scripts/check-live-stroke.py dist/live-stroke",
     "test:objects": "node scripts/test-objects.mjs",
-    "test": "npm run test:export && npm run test:live-stroke && npm run test:objects && npm run test:zoom && npm run test:unsaved && npm run test:text && npm run test:sidebar",
+    "test": "npm run test:export && npm run test:open && npm run test:live-stroke && npm run test:objects && npm run test:zoom && npm run test:unsaved && npm run test:text && npm run test:sidebar",
     "test:zoom": "node scripts/test-zoom.mjs",
     "test:unsaved": "node scripts/test-unsaved.mjs",
     "install:desktop": "bash scripts/install-desktop.sh",
     "test:text": "node scripts/test-text.mjs",
     "ensure:electron": "node scripts/ensure-electron.mjs",
     "pretest": "node scripts/ensure-electron.mjs",
-    "test:sidebar": "node scripts/test-sidebar.mjs"
+    "test:sidebar": "node scripts/test-sidebar.mjs",
+    "test:open": "node scripts/test-open.mjs"
   },
   "dependencies": {
     "pdf-lib": "^1.17.1",

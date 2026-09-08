@@ -76,6 +76,9 @@ jobs:
       - run: npm ci
 
       - name: Build AppImage
+        # --publish never lives in the dist script: electron-builder otherwise
+        # detects CI and tries to create a GitHub Release, which fails without a
+        # token. The artifact upload below is how builds are shared.
         run: npm run dist
 
       - uses: actions/upload-artifact@v4

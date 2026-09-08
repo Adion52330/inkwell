@@ -38,6 +38,7 @@ npm test          # all three suites
 | `test:unsaved` | Closing with unsaved ink asks first; closing a saved document does not. |
 | `test:text` | Text spans sit over the glyphs they describe (measured in PDF points), selection returns the right words, search highlights land on their match, and contents links navigate. |
 | `test:sidebar` | Thumbnails keep their height in an overflowing list, history records and travels, and results are grouped by page. |
+| `test:open` | A second document can be opened while one is already open, in both directions. |
 
 Each one checks rendered output rather than internal state: they rasterise real
 pages or compare real frames. Every coordinate bug this project has had would
