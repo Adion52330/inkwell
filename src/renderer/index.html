@@ -15,6 +15,20 @@
         <button class="icon-btn" id="btn-sidebar" title="Pages  ·  Ctrl+B" aria-label="Toggle pages sidebar"></button>
         <button class="icon-btn" id="btn-open" title="Open PDF  ·  Ctrl+O" aria-label="Open PDF"></button>
 
+        <div class="page-jump" title="Current page — type a number to jump">
+          <input
+            id="page-input"
+            type="text"
+            inputmode="numeric"
+            autocomplete="off"
+            spellcheck="false"
+            aria-label="Current page number"
+            value="–"
+          />
+          <span class="of">/</span>
+          <span id="page-count">–</span>
+        </div>
+
         <div class="title" id="doc-title">
           Inkwell
           <span class="subtitle" id="doc-subtitle">No document open</span>
@@ -41,6 +55,22 @@
             <div class="recents" id="recents" hidden></div>
           </div>
         </section>
+
+        <div class="search-bar" id="search-bar" hidden>
+          <span class="search-icon" id="search-icon"></span>
+          <input
+            id="search-input"
+            type="text"
+            placeholder="Find in document"
+            autocomplete="off"
+            spellcheck="false"
+            aria-label="Find in document"
+          />
+          <span class="search-count" id="search-count"></span>
+          <button class="icon-btn" id="search-prev" title="Previous match  ·  Shift+Enter" aria-label="Previous match"></button>
+          <button class="icon-btn" id="search-next" title="Next match  ·  Enter" aria-label="Next match"></button>
+          <button class="icon-btn" id="search-close" title="Close  ·  Esc" aria-label="Close search"></button>
+        </div>
 
         <div class="drop-veil" id="drop-veil">Drop a PDF to open it</div>
       </div>

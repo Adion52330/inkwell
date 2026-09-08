@@ -8,6 +8,7 @@ import { Thumbnails } from './ui/thumbnails.js';
 import { BrushCursor } from './ui/cursor.js';
 import { icon } from './ui/icons.js';
 import { buildAnnotatedPdf, suggestExportName } from './export.js';
+import { Search } from './search.js';
 
 const api = window.inkwell;
 const SETTINGS_KEY = 'inkwell.tools.v1';
@@ -71,6 +72,7 @@ const ink = new InkEngine({ viewer: viewerEl, store, tools, view });
 const thumbs = new Thumbnails({ mount: bodyEl, store, view });
 const toolbar = new Toolbar({ mount: bodyEl, tools });
 const brushCursor = new BrushCursor({ viewer: viewerEl, tools, view });
+const search = new Search({ view, store });
 
 // The sidebar must sit before the viewer in the flex row.
 bodyEl.insertBefore(thumbs.el, viewerEl);
@@ -201,6 +203,105 @@ function toggleSidebar() {
   }
 }
 
+// --- find in document -------------------------------------------------------
+
+const searchBar = $('search-bar');
+const searchInput = $('search-input');
+const searchCount = $('search-count');
+$('search-icon').innerHTML = icon('search', 15);
+$('search-prev').innerHTML = icon('chevronUp');
+$('search-next').innerHTML = icon('chevronDown');
+$('search-close').innerHTML = icon('close');
+
+let searchTimer = 0;
+
+function openSearch() {
+  if (!store.doc) return;
+  searchBar.hidden = false;
+  requestAnimationFrame(() => searchBar.classList.add('on'));
+  searchInput.focus();
+  searchInput.select();
+}
+
+function closeSearch() {
+  searchBar.classList.remove('on');
+  searchBar.hidden = true;
+  search.reset();
+  searchCount.textContent = '';
+}
+
+$('search-close').addEventListener('click', closeSearch);
+$('search-next').addEventListener('click', () => search.next());
+$('search-prev').addEventListener('click', () => search.previous());
+
+searchInput.addEventListener('input', () => {
+  // Debounced: every keystroke would otherwise restart a full-document scan.
+  clearTimeout(searchTimer);
+  const query = searchInput.value;
+  searchTimer = setTimeout(() => search.run(query), 180);
+});
+
+searchInput.addEventListener('keydown', (event) => {
+  event.stopPropagation(); // typing must not trigger tool shortcuts
+  if (event.key === 'Enter') {
+    event.preventDefault();
+    if (event.shiftKey) search.previous();
+    else search.next();
+  } else if (event.key === 'Escape') {
+    closeSearch();
+  }
+});
+
+search.addEventListener('status', (event) => {
+  const { total, index, scanning, query } = event.detail;
+  if (!query) {
+    searchCount.textContent = '';
+  } else if (!total) {
+    searchCount.textContent = scanning ? 'searching…' : 'no matches';
+  } else {
+    searchCount.textContent = `${index + 1} of ${total}${scanning ? '…' : ''}`;
+  }
+  searchBar.classList.toggle('empty', !!query && !total && !scanning);
+  $('search-next').disabled = total === 0;
+  $('search-prev').disabled = total === 0;
+});
+
+// --- page indicator ---------------------------------------------------------
+
+const pageInput = $('page-input');
+const pageTotalEl = $('page-count');
+
+function showPageNumber(index) {
+  // Don't fight the user while they are typing a page number.
+  if (document.activeElement === pageInput) return;
+  pageInput.value = store.doc ? String(index + 1) : '–';
+}
+
+function commitPageNumber() {
+  if (!store.doc) return;
+  const wanted = parseInt(pageInput.value, 10);
+  if (Number.isNaN(wanted)) {
+    showPageNumber(view.currentPage);
+    return;
+  }
+  const index = Math.min(Math.max(wanted, 1), store.pageCount) - 1;
+  view.scrollToPage(index);
+  pageInput.value = String(index + 1);
+  pageInput.blur();
+}
+
+pageInput.addEventListener('focus', () => pageInput.select());
+pageInput.addEventListener('keydown', (event) => {
+  // Typing here must never reach the tool shortcuts.
+  event.stopPropagation();
+  if (event.key === 'Enter') commitPageNumber();
+  else if (event.key === 'Escape') {
+    showPageNumber(view.currentPage);
+    pageInput.blur();
+  }
+});
+pageInput.addEventListener('blur', () => showPageNumber(view.currentPage));
+
 // --- toast ------------------------------------------------------------------
 
 let toastTimer = 0;
@@ -247,7 +348,10 @@ async function openDocument(filePath) {
     view.scrollToPage(0, 'auto');
     ink.clearSelection();
 
+    search.reset();
     welcomeEl.hidden = true;
+    pageTotalEl.textContent = String(store.pageCount);
+    showPageNumber(0);
     titleEl.firstChild.textContent = file.name;
     updateSubtitle();
     document.title = `${file.name} — Inkwell`;
@@ -301,7 +405,10 @@ async function closeDocument() {
   store.close();
   originalBytes = null;
   currentPath = null;
+  closeSearch();
   welcomeEl.hidden = false;
+  pageTotalEl.textContent = '–';
+  showPageNumber(0);
   titleEl.firstChild.textContent = 'Inkwell';
   document.title = 'Inkwell';
   updateSubtitle();
@@ -329,6 +436,7 @@ store.addEventListener('change', (event) => {
   }
   updateHistoryButtons();
   updateSubtitle();
+  if (store.doc) pageTotalEl.textContent = String(store.pageCount);
   scheduleSave();
 });
 
@@ -377,6 +485,14 @@ async function exportDocument() {
   exporting = true;
   toast('Preparing annotated PDF…');
   try {
+    // Page geometry is measured lazily, so a page carrying ink restored from a
+    // sidecar may never have been on screen. Resolve those before flattening,
+    // or their ink would be placed through an assumed matrix.
+    const annotated = store.doc.pages
+      .map((page, index) => (page.strokes.length || page.objects.length ? index : -1))
+      .filter((index) => index >= 0);
+    await view.ensureSizes(annotated);
+
     const bytes = await buildAnnotatedPdf({
       store,
       originalBytes,
@@ -466,6 +582,15 @@ async function command(name, payload) {
     case 'sidebar':
       toggleSidebar();
       break;
+    case 'find':
+      openSearch();
+      break;
+    case 'find-next':
+      search.next();
+      break;
+    case 'find-previous':
+      search.previous();
+      break;
     case 'insert-page': {
       if (!store.doc) break;
       const at = store.insertBlankPage(view.currentPage);
@@ -513,6 +638,7 @@ const TOOL_KEYS = {
   5: 'text',
   6: 'note',
   7: 'shape',
+  8: 'select',
   h: 'hand',
   H: 'hand',
 };
@@ -531,6 +657,7 @@ window.addEventListener('keydown', (event) => {
     ink.clearSelection();
     toolbar.closePopover();
     closeZoomMenu();
+    if (!searchBar.hidden) closeSearch();
     return;
   }
   if ((event.key === 'Delete' || event.key === 'Backspace') && ink.selection.pageIndex >= 0) {
@@ -663,6 +790,7 @@ view.addEventListener('zoom', () => {
 });
 view.addEventListener('page', (event) => {
   thumbs.setCurrent(event.detail.page);
+  showPageNumber(event.detail.page);
 });
 
 thumbs.addEventListener('goto', (event) => view.scrollToPage(event.detail.page));

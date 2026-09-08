@@ -91,7 +91,7 @@ function createWindow() {
     // Native window decorations and the native menu bar. A custom frameless
     // title bar breaks tiling window managers, window snapping and the desktop
     // environment's own theming, and gains nothing here.
-    backgroundColor: '#1c1c1e',
+    backgroundColor: '#232326',
     title: 'Inkwell',
     icon: path.join(__dirname, '../../build/icon.png'),
     webPreferences: {
@@ -171,6 +171,16 @@ function buildMenu() {
           { label: 'Undo', accelerator: 'CmdOrCtrl+Z', click: () => send('undo') },
           { label: 'Redo', accelerator: 'CmdOrCtrl+Shift+Z', click: () => send('redo') },
           { type: 'separator' },
+          { role: 'copy' },
+          { type: 'separator' },
+          { label: 'Find…', accelerator: 'CmdOrCtrl+F', click: () => send('find') },
+          { label: 'Find Next', accelerator: 'CmdOrCtrl+G', click: () => send('find-next') },
+          {
+            label: 'Find Previous',
+            accelerator: 'CmdOrCtrl+Shift+G',
+            click: () => send('find-previous'),
+          },
+          { type: 'separator' },
           { label: 'Delete Selection', click: () => send('delete') },
           { label: 'Select All Ink', accelerator: 'CmdOrCtrl+A', click: () => send('select-all') },
         ],
@@ -190,6 +200,7 @@ function buildMenu() {
           { label: 'Sticky Note', click: () => send('tool', 'note') },
           { label: 'Shapes', click: () => send('tool', 'shape') },
           { type: 'separator' },
+          { label: 'Select Text', click: () => send('tool', 'select') },
           { label: 'Hand / Pan', click: () => send('tool', 'hand') },
           { type: 'separator' },
           { label: 'Insert Blank Page After Current', click: () => send('insert-page') },
@@ -283,6 +294,22 @@ ipcMain.handle('file:exportPdf', async (_event, suggestedName, bytes) => {
   try {
     await fsp.writeFile(result.filePath, Buffer.from(bytes));
     return { ok: true, path: result.filePath };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+// A link in a PDF is untrusted input, so only http(s) and mailto are ever
+// handed to the desktop. file:// or a custom scheme could otherwise be used to
+// launch something unexpected from a document the user merely opened.
+ipcMain.handle('link:open', async (_event, url) => {
+  try {
+    const parsed = new URL(url);
+    if (!['http:', 'https:', 'mailto:'].includes(parsed.protocol)) {
+      return { ok: false, error: `refused ${parsed.protocol} link` };
+    }
+    await shell.openExternal(parsed.href);
+    return { ok: true };
   } catch (err) {
     return { ok: false, error: err.message };
   }

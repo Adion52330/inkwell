@@ -36,6 +36,7 @@ npm test          # all three suites
 | `test:objects` | Shapes, text boxes and notes can be removed, stay removed after a repaint, and come back on undo. |
 | `test:zoom` | Zooming keeps whatever is under the pointer under the pointer, actually scales the page, and the preset menu applies. |
 | `test:unsaved` | Closing with unsaved ink asks first; closing a saved document does not. |
+| `test:text` | Text spans sit over the glyphs they describe (measured in PDF points), selection returns the right words, search highlights land on their match, and contents links navigate. |
 
 Each one checks rendered output rather than internal state: they rasterise real
 pages or compare real frames. Every coordinate bug this project has had would
@@ -117,6 +118,21 @@ width is something you judge by eye rather than by reading a slider.
 snaps there, turning vertical down the sides, and the page reserves that edge so
 nothing is ever hidden underneath it. Where you left it is remembered.
 
+## Reading
+
+Inkwell is a reader as well as an annotator. The **Select text** tool (`8`) turns
+the page into real text: drag to select, `Ctrl+C` to copy. It and the **Pan**
+tool are the reading modes, where links become clickable — a contents entry
+jumps to its page, an external URL opens in your browser.
+
+**Find** (`Ctrl+F`) searches the whole document. Matches are counted as the scan
+runs rather than after it, so a long document is usable immediately; `Enter` and
+`Shift+Enter` step through them, and highlights are drawn from the real glyph
+rectangles so they sit exactly on the words they matched.
+
+The page indicator in the toolbar shows where you are and takes a page number —
+type one and press `Enter` to jump.
+
 ## Tools
 
 - **Pen** — pressure-tapered ink, twelve colours, 1–16 pt
@@ -147,11 +163,14 @@ it is a single undo step.
 
 | Key | Action |
 | --- | --- |
-| `1`–`7` | Pen, highlighter, eraser, lasso, text, note, shapes |
+| `1`–`8` | Pen, highlighter, eraser, lasso, text, note, shapes, select text |
 | `H` / hold `Space` | Pan |
 | `Ctrl+Z` / `Ctrl+Shift+Z` | Undo / redo |
 | `Ctrl+O` / `Ctrl+S` / `Ctrl+E` | Open / save notes / export |
 | `Ctrl+B` | Pages sidebar |
+| `Ctrl+F` | Find in document |
+| `Ctrl+G` / `Ctrl+Shift+G` | Next / previous match |
+| `Ctrl+C` | Copy selected text |
 | `Ctrl` `+` / `−` / `0` / `1` / `2` | Zoom in, out, actual size, fit width, fit page |
 | `Ctrl+wheel`, pinch | Zoom about the cursor |
 | Click the zoom % | Preset levels and fit modes |
@@ -210,6 +229,16 @@ those strokes get their own save rather than being silently considered written.
 The sidecar records a hash of the source PDF. Opening notes against a PDF that
 has since changed warns you instead of quietly placing ink in the wrong spot.
 
+### The text layer is geometry, not decoration
+
+Selection, search and links all ride on pdf.js's transparent text spans sitting
+exactly over the rendered glyphs. That geometry depends on CSS variables pdf.js
+declares on its own page element, and its stylesheet is extracted from the
+installed package at build time rather than hand-copied, so it cannot drift when
+pdfjs-dist is upgraded. `test:text` measures a span's position in PDF points
+against the coordinates the sample was actually drawn at — the check that would
+have caught the layer being silently misplaced.
+
 ### Zoom is arithmetic, not measurement
 
 Page positions are computed from the layout constants rather than read back from
@@ -219,10 +248,20 @@ wheel and pinch events are also coalesced into one update per animation frame.
 Zoom anchors on the point under the pointer, so the document grows around what
 you are looking at instead of sliding away from it.
 
+### Large documents open immediately
+
+Only the first page is measured up front. Loading every page to collect its
+geometry meant a thousand-page file spent a long time — and a lot of memory —
+before showing anything; the rest start as copies of page one and are corrected
+the moment they actually render. Export resolves any page that carries ink but
+was never displayed, so nothing is flattened through an assumed matrix.
+
 ### Memory is bounded
 
 Pages rasterise as they approach the viewport and hand their canvases back when
-they leave, so page count does not translate into memory. Zoom shows a scaled
+they leave, so page count does not translate into memory. Canvases are created
+at zero size rather than the 300×150 default, which across a long document is
+real memory for pages nobody has looked at. Zoom shows a scaled
 bitmap immediately and re-renders crisply once the gesture settles, which is what
 keeps zooming smooth rather than stuttering on every wheel tick.
 

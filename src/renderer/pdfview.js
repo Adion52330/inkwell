@@ -92,21 +92,25 @@ export class PdfView extends EventTarget {
     });
     this.pdfDoc = await task.promise;
 
-    // Page geometry is read once up front so layout, hit-testing and export
-    // never have to await pdf.js again.
-    const sizes = [];
-    for (let i = 1; i <= this.pdfDoc.numPages; i += 1) {
-      const page = await this.pdfDoc.getPage(i);
-      const viewport = page.getViewport({ scale: 1 });
-      sizes.push({
-        width: viewport.width,
-        height: viewport.height,
-        rotate: page.rotate,
-        // pdf.js's user-space → viewport matrix. The exporter inverts it to put
-        // ink back into PDF coordinates exactly, whatever the page's own
-        // /Rotate and MediaBox origin happen to be.
-        transform: viewport.transform,
-      });
+    // Only the first page is measured. Loading every page up front to collect
+    // geometry meant a thousand-page document spent a long time — and a lot of
+    // memory — before showing anything at all. The rest start as copies of page
+    // one and are corrected the moment they actually render, which is what the
+    // `estimated` flag tracks.
+    const first = await this.pdfDoc.getPage(1);
+    const viewport = first.getViewport({ scale: 1 });
+    const measured = {
+      width: viewport.width,
+      height: viewport.height,
+      rotate: first.rotate,
+      // pdf.js's user-space → viewport matrix. The exporter inverts it to put
+      // ink back into PDF coordinates exactly, whatever the page's own
+      // /Rotate and MediaBox origin happen to be.
+      transform: viewport.transform,
+    };
+    const sizes = [measured];
+    for (let i = 1; i < this.pdfDoc.numPages; i += 1) {
+      sizes.push({ ...measured, estimated: true });
     }
     return { pageCount: this.pdfDoc.numPages, sizes };
   }
@@ -131,17 +135,16 @@ export class PdfView extends EventTarget {
     this.sourceBytes.set(key, bytes.slice());
     const doc = await pdfjs.getDocument({ data: bytes }).promise;
     this.sources.set(key, doc);
-    const sizes = [];
-    for (let i = 1; i <= doc.numPages; i += 1) {
-      const page = await doc.getPage(i);
-      const viewport = page.getViewport({ scale: 1 });
-      sizes.push({
-        width: viewport.width,
-        height: viewport.height,
-        rotate: page.rotate,
-        transform: viewport.transform,
-      });
-    }
+    const first = await doc.getPage(1);
+    const viewport = first.getViewport({ scale: 1 });
+    const measured = {
+      width: viewport.width,
+      height: viewport.height,
+      rotate: first.rotate,
+      transform: viewport.transform,
+    };
+    const sizes = [measured];
+    for (let i = 1; i < doc.numPages; i += 1) sizes.push({ ...measured, estimated: true });
     return { pageCount: doc.numPages, sizes };
   }
 
@@ -161,10 +164,28 @@ export class PdfView extends EventTarget {
 
       const pdfLayer = document.createElement('canvas');
       pdfLayer.className = 'layer pdf-layer';
+      // pdf.js's selectable text: transparent spans positioned over the glyphs.
+      // It sits above the raster so it can take the pointer, and below the ink
+      // so strokes are painted over the words rather than under them.
+      const textLayer = document.createElement('div');
+      textLayer.className = 'textLayer';
+      // Link hotspots: contents entries, cross references and external URLs.
+      const linkLayer = document.createElement('div');
+      linkLayer.className = 'layer link-layer';
+      // Search hit highlights, under the ink so notes stay on top.
+      const searchLayer = document.createElement('div');
+      searchLayer.className = 'layer search-layer';
       const inkLayer = document.createElement('canvas');
       inkLayer.className = 'layer ink-layer';
       const wetLayer = document.createElement('canvas');
       wetLayer.className = 'layer wet-layer';
+      // A canvas defaults to a 300x150 backing store. Across a long document
+      // that is real memory for pages that have never been looked at, so they
+      // start at zero and are sized when they render.
+      for (const canvas of [pdfLayer, inkLayer, wetLayer]) {
+        canvas.width = 0;
+        canvas.height = 0;
+      }
       const objLayer = document.createElement('div');
       objLayer.className = 'layer obj-layer';
 
@@ -172,7 +193,7 @@ export class PdfView extends EventTarget {
       number.className = 'page-number';
       number.textContent = String(index + 1);
 
-      el.append(pdfLayer, inkLayer, wetLayer, objLayer, number);
+      el.append(pdfLayer, textLayer, linkLayer, searchLayer, inkLayer, wetLayer, objLayer, number);
       this.pagesEl.append(el);
       this.pageEls.push(el);
       this.observer.observe(el);
@@ -198,6 +219,9 @@ export class PdfView extends EventTarget {
       const { width, height } = this.displaySize(index);
       el.style.width = `${width}px`;
       el.style.height = `${height}px`;
+      // The text layer's geometry is driven by this: pdf.js writes span
+      // positions in unscaled units and multiplies by it in CSS.
+      el.style.setProperty('--scale-factor', String(this.scale));
     }
     // Written from the same constants the scroll maths uses, so the two can
     // never disagree about where a page actually sits.
@@ -297,6 +321,11 @@ export class PdfView extends EventTarget {
 
   // --- rasterising ---------------------------------------------------------
 
+  /** The rendered text layer for a page, if it has one. */
+  textLayerFor(index) {
+    return this.pageEls[index]?._textLayer ?? null;
+  }
+
   /** Which document and page number backs a viewer page, if any. */
   sourceForPage(index) {
     return this.#sourceFor(index);
@@ -342,6 +371,12 @@ export class PdfView extends EventTarget {
     if (source) {
       try {
         const page = await source.doc.getPage(source.pageNumber);
+        // First sight of this page: replace the estimate with its real
+        // geometry, and re-lay-out if it differs from what was assumed.
+        if (this.#resolveSize(index, page)) {
+          this.applySizes();
+          this.#sizeCanvas(canvas, index);
+        }
         const rotation = (page.rotate + (this.store.page(index)?.rotation || 0)) % 360;
         const viewport = page.getViewport({ scale: this.scale * this.dpr, rotation });
         const task = page.render({ canvasContext: ctx, viewport });
@@ -360,6 +395,169 @@ export class PdfView extends EventTarget {
     el.classList.add('ready');
     this.repaintInk(index);
     this.#renderObjects(index);
+    // Await the text layer: search highlights are derived from its spans, so
+    // anything listening has to know it is actually there.
+    await this.#renderTextLayer(el, index, source);
+    this.#renderLinks(el, index, source);
+    this.dispatchEvent(new CustomEvent('rendered', { detail: { page: index } }));
+  }
+
+  /**
+   * Build the clickable hotspots for a page's link annotations.
+   *
+   * Rather than pdf.js's full AnnotationLayer — which needs a link service, an
+   * editor manager and a stylesheet — this reads the annotations directly and
+   * places plain elements, which is all a link needs.
+   */
+  async #renderLinks(el, index, source) {
+    const container = el.querySelector('.link-layer');
+    if (!container) return;
+    container.replaceChildren();
+    if (!source) return;
+    try {
+      const page = await source.doc.getPage(source.pageNumber);
+      const annotations = await page.getAnnotations({ intent: 'display' });
+      const rotation = (page.rotate + (this.store.page(index)?.rotation || 0)) % 360;
+      const viewport = page.getViewport({ scale: this.scale, rotation });
+
+      for (const annotation of annotations) {
+        if (annotation.subtype !== 'Link') continue;
+        const target = annotation.url || annotation.dest;
+        if (!target) continue;
+
+        // pdf.js 6 dropped convertToViewportRectangle; map the two opposite
+        // corners instead, which also handles rotation correctly.
+        const [ax, ay] = viewport.convertToViewportPoint(annotation.rect[0], annotation.rect[1]);
+        const [bx, by] = viewport.convertToViewportPoint(annotation.rect[2], annotation.rect[3]);
+        const [x0, y0, x1, y1] = [ax, ay, bx, by];
+        const hotspot = document.createElement('a');
+        hotspot.className = 'pdf-link';
+        hotspot.style.left = `${Math.min(x0, x1)}px`;
+        hotspot.style.top = `${Math.min(y0, y1)}px`;
+        hotspot.style.width = `${Math.abs(x1 - x0)}px`;
+        hotspot.style.height = `${Math.abs(y1 - y0)}px`;
+
+        if (annotation.url) {
+          hotspot.title = annotation.url;
+          hotspot.addEventListener('click', (event) => {
+            event.preventDefault();
+            window.inkwell.openExternal(annotation.url);
+          });
+        } else {
+          hotspot.title = 'Go to destination';
+          hotspot.addEventListener('click', (event) => {
+            event.preventDefault();
+            this.goToDestination(annotation.dest, source.doc);
+          });
+        }
+        container.append(hotspot);
+      }
+    } catch (err) {
+      console.warn(`[inkwell] could not read links on page ${index + 1}`, err);
+    }
+  }
+
+  /** Follow an internal destination — a contents entry or a cross reference. */
+  async goToDestination(dest, doc = this.pdfDoc) {
+    try {
+      const explicit = typeof dest === 'string' ? await doc.getDestination(dest) : dest;
+      if (!Array.isArray(explicit) || !explicit.length) return;
+      const ref = explicit[0];
+      const sourceIndex =
+        typeof ref === 'object' && ref !== null ? await doc.getPageIndex(ref) : Number(ref);
+      // Map the source page onto its place in the viewer, which may have been
+      // reordered or had pages inserted since the document was opened.
+      const viewerIndex = this.store.doc ? this.store.doc.order.indexOf(sourceIndex) : sourceIndex;
+      const target = viewerIndex >= 0 ? viewerIndex : sourceIndex;
+      if (target >= 0 && target < this.pageEls.length) this.scrollToPage(target);
+    } catch (err) {
+      console.warn('[inkwell] could not follow link destination', err);
+    }
+  }
+
+  /**
+   * Render the selectable text for a page.
+   *
+   * The viewport handed to TextLayer is in CSS units, not device pixels: the
+   * class applies the device pixel ratio itself, and passing an already-scaled
+   * viewport makes the text drift away from the glyphs underneath it.
+   */
+  async #renderTextLayer(el, index, source) {
+    const container = el.querySelector('.textLayer');
+    if (!container) return;
+    if (!source) {
+      container.replaceChildren();
+      return;
+    }
+    try {
+      const page = await source.doc.getPage(source.pageNumber);
+      const rotation = (page.rotate + (this.store.page(index)?.rotation || 0)) % 360;
+      const viewport = page.getViewport({ scale: this.scale, rotation });
+
+      // Rescaling an existing layer keeps the user's selection alive across a
+      // zoom; rebuilding would silently drop it.
+      if (el._textLayer) {
+        try {
+          await el._textLayer.update({ viewport });
+          return;
+        } catch {
+          el._textLayer.cancel();
+          el._textLayer = null;
+        }
+      }
+
+      container.replaceChildren();
+      const layer = new pdfjs.TextLayer({
+        textContentSource: page.streamTextContent({
+          includeMarkedContent: true,
+          disableNormalization: true,
+        }),
+        container,
+        viewport,
+      });
+      el._textLayer = layer;
+      await layer.render();
+    } catch (err) {
+      // Text selection is an enhancement; a page that cannot produce it should
+      // still render and still be drawable.
+      console.warn(`[inkwell] no text layer for page ${index + 1}`, err);
+    }
+  }
+
+  /**
+   * Replace a page's estimated geometry with its real geometry.
+   * @returns {boolean} whether the layout actually changed.
+   */
+  #resolveSize(index, page) {
+    const size = this.store.pageSize(index);
+    if (!size?.estimated) return false;
+    const viewport = page.getViewport({ scale: 1 });
+    const changed =
+      Math.abs(size.width - viewport.width) > 0.5 || Math.abs(size.height - viewport.height) > 0.5;
+    size.width = viewport.width;
+    size.height = viewport.height;
+    size.rotate = page.rotate;
+    size.transform = viewport.transform;
+    delete size.estimated;
+    return changed;
+  }
+
+  /**
+   * Resolve the real geometry of specific pages. Export needs this: a page can
+   * carry ink restored from a sidecar without ever having been on screen, and
+   * flattening it through an estimated matrix would misplace the ink.
+   */
+  async ensureSizes(indices) {
+    for (const index of indices) {
+      if (!this.store.pageSize(index)?.estimated) continue;
+      const source = this.#sourceFor(index);
+      if (!source) continue;
+      try {
+        this.#resolveSize(index, await source.doc.getPage(source.pageNumber));
+      } catch (err) {
+        console.warn(`[inkwell] could not measure page ${index + 1}`, err);
+      }
+    }
   }
 
   #releasePage(index) {
@@ -369,6 +567,13 @@ export class PdfView extends EventTarget {
       el._renderTask.cancel();
       el._renderTask = null;
     }
+    if (el._textLayer) {
+      el._textLayer.cancel();
+      el._textLayer = null;
+    }
+    el.querySelector('.textLayer')?.replaceChildren();
+    el.querySelector('.link-layer')?.replaceChildren();
+    el.querySelector('.search-layer')?.replaceChildren();
     // Zeroing a canvas is what actually frees its backing store.
     for (const canvas of el.querySelectorAll('canvas')) {
       canvas.width = 0;

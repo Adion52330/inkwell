@@ -15,6 +15,7 @@ const SIZES = [
   { width: 612, height: 792, rotate: 0, transform: [1, 0, 0, -1, 0, 792] },
   { width: 595.28, height: 841.89, rotate: 0, transform: [1, 0, 0, -1, 0, 841.89] },
   { width: 792, height: 612, rotate: 90, transform: [0, 1, 1, 0, 0, 0] },
+  { width: 612, height: 792, rotate: 0, transform: [1, 0, 0, -1, 0, 792] },
 ];
 
 /** A pure-red rectangle: easy to find in a canvas, easy to reason about. */
@@ -57,8 +58,8 @@ export function seedSidecar({ strokes = [], objects = [] } = {}) {
       hash,
       savedAt: new Date().toISOString(),
       sizes: SIZES,
-      order: [0, 1, 2],
-      pages: [{ ...blank, strokes, objects }, blank, blank],
+      order: [0, 1, 2, 3],
+      pages: [{ ...blank, strokes, objects }, blank, blank, blank],
     })
   );
   return sampleSidecar();

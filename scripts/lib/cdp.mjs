@@ -62,8 +62,23 @@ export async function launch({ port, pdf, args = [], settleMs = 4500 }) {
 
   let nextId = 1;
   const pending = new Map();
+  // Everything the page logs, kept so a failing test can say why rather than
+  // just that something did not appear.
+  const consoleLines = [];
   ws.addEventListener('message', (event) => {
     const message = JSON.parse(event.data);
+    if (message.method === 'Runtime.consoleAPICalled') {
+      const text = (message.params.args || [])
+        .map((arg) => arg.value ?? arg.description ?? arg.type)
+        .join(' ');
+      consoleLines.push(`${message.params.type}: ${text}`);
+      return;
+    }
+    if (message.method === 'Runtime.exceptionThrown') {
+      const details = message.params.exceptionDetails;
+      consoleLines.push(`exception: ${details.exception?.description || details.text}`);
+      return;
+    }
     const resolve = pending.get(message.id);
     if (resolve) {
       pending.delete(message.id);
@@ -91,7 +106,7 @@ export async function launch({ port, pdf, args = [], settleMs = 4500 }) {
     child.kill('SIGKILL');
   };
 
-  return { send, close, child };
+  return { send, close, child, consoleLines };
 }
 
 /** Evaluate an expression in the page and return its value. */

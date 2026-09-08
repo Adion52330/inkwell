@@ -18,6 +18,9 @@ contextBridge.exposeInMainWorld('inkwell', {
     ipcRenderer.invoke('file:exportPdf', suggestedName, bytes),
   pickPdfToAppend: () => ipcRenderer.invoke('dialog:appendPdf'),
 
+  // --- links ---------------------------------------------------------------
+  openExternal: (url) => ipcRenderer.invoke('link:open', url),
+
   // --- recents -------------------------------------------------------------
   getRecents: () => ipcRenderer.invoke('recents:get'),
   clearRecents: () => ipcRenderer.invoke('recents:clear'),

@@ -7,7 +7,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { PDFDocument, StandardFonts, rgb, degrees } = require('pdf-lib');
+const { PDFDocument, StandardFonts, rgb, degrees, PDFName, PDFString } = require('pdf-lib');
 
 async function main() {
   const doc = await PDFDocument.create();
@@ -81,6 +81,70 @@ async function main() {
       font: body,
       color: rgb(0.6, 0.6, 0.64),
     });
+  });
+
+  // A contents page, so link annotations are exercised: three internal jumps
+  // and one external URL. Without these the link layer has nothing to prove.
+  const contents = doc.addPage([612, 792]);
+  const { width: cw, height: ch } = contents.getSize();
+  contents.drawText('Contents', {
+    x: 56,
+    y: ch - 78,
+    size: 21,
+    font: bold,
+    color: rgb(0.1, 0.1, 0.12),
+  });
+  contents.drawLine({
+    start: { x: 56, y: ch - 92 },
+    end: { x: cw - 56, y: ch - 92 },
+    thickness: 0.8,
+    color: rgb(0.8, 0.8, 0.84),
+  });
+
+  const addLink = (page, rect, extra) => {
+    const annot = doc.context.obj({
+      Type: 'Annot',
+      Subtype: 'Link',
+      Rect: rect,
+      // A zero-width border: viewers should not draw a box around the hotspot.
+      Border: [0, 0, 0],
+      ...extra,
+    });
+    page.node.addAnnot(doc.context.register(annot));
+  };
+
+  pages.forEach((spec, index) => {
+    const y = ch - 130 - index * 26;
+    const label = `${index + 1}.  ${spec.title}`;
+    contents.drawText(label, { x: 56, y, size: 12.5, font: body, color: rgb(0.05, 0.35, 0.75) });
+    const textWidth = body.widthOfTextAtSize(label, 12.5);
+    addLink(contents, [56, y - 4, 56 + textWidth, y + 13], {
+      // An explicit destination: page reference, fit type, then coordinates.
+      Dest: [doc.getPage(index).ref, PDFName.of('XYZ'), null, null, null],
+    });
+  });
+
+  const external = 'https://github.com/Adion52330/inkwell';
+  const externalY = ch - 130 - pages.length * 26 - 18;
+  contents.drawText('Project home page', {
+    x: 56,
+    y: externalY,
+    size: 12.5,
+    font: body,
+    color: rgb(0.05, 0.35, 0.75),
+  });
+  addLink(
+    contents,
+    [56, externalY - 4, 56 + body.widthOfTextAtSize('Project home page', 12.5), externalY + 13],
+    { A: { Type: 'Action', S: 'URI', URI: PDFString.of(external) } }
+  );
+
+  contents.drawText(`${pages.length + 1} / ${pages.length + 1}`, {
+    x: cw - 88,
+    y: 44,
+    size: 9,
+    font: body,
+    color: rgb(0.6, 0.6, 0.64),
   });
 
   // Fixed metadata dates keep the generated file byte-identical between runs,

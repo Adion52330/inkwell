@@ -28,6 +28,12 @@ const VELOCITY_MAX = 2.4;
 
 const clamp = (value, lo, hi) => (value < lo ? lo : value > hi ? hi : value);
 
+// Tools that consume the pointer. Anything else — panning, selecting text,
+// following a link — must be left entirely alone, including pointer capture:
+// capturing on the viewer redirects later events away from the text layer and
+// silently breaks native text selection.
+const DRAWING_TOOLS = new Set(['pen', 'highlighter', 'eraser', 'lasso', 'shape', 'text', 'note']);
+
 export class InkEngine {
   /**
    * @param {object} deps
@@ -130,7 +136,8 @@ export class InkEngine {
     if (!hit) return;
 
     const tool = this.#resolveTool(event);
-    if (tool === 'hand') return; // the view's own pan handler takes it
+    // Bail before touching the pointer at all for non-drawing tools.
+    if (!DRAWING_TOOLS.has(tool)) return;
 
     const { x, y } = this.view.toPage(hit.pageIndex, event.clientX, event.clientY);
     const gesture = {
@@ -188,8 +195,7 @@ export class InkEngine {
         // Placed on release, so a stray drag does not create an object.
         break;
       default:
-        this.gesture = null;
-        return;
+        break;
     }
     event.preventDefault();
   }

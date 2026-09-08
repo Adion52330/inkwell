@@ -20,7 +20,7 @@ npm start
 npm test
 ```
 
-Five suites, all of which check rendered output rather than internal state:
+Six suites, all of which check rendered output rather than internal state:
 
 | Suite | What it proves |
 | --- | --- |
@@ -29,6 +29,7 @@ Five suites, all of which check rendered output rather than internal state:
 | `npm run test:objects` | Shapes, text boxes and sticky notes can be removed, stay removed after a repaint, and return on undo. |
 | `npm run test:zoom` | Zoom anchors on the point under the pointer, actually scales the page, and the preset menu applies a level. |
 | `npm run test:unsaved` | Closing with unsaved ink is held for confirmation; closing a saved document is not. |
+| `npm run test:text` | Text spans align with the glyphs beneath them, selection works, search highlights land on their match, and links navigate. |
 
 `scripts/lib/cdp.mjs` is the shared harness — launching the app with a
 throwaway profile, driving real input, reading back the ink canvas — and
@@ -36,7 +37,7 @@ throwaway profile, driving real input, reading back the ink canvas — and
 lines on top of those.
 
 They need `pdftoppm` (poppler-utils), Python 3 with Pillow, and a display for
-the four that launch the app (`xvfb-run -a npm test` works headless).
+the five that launch the app (`xvfb-run -a npm test` works headless).
 
 **Please test against rendered output, not against the maths.** Every
 coordinate bug this project has had would have passed a unit test written from
@@ -73,6 +74,10 @@ A few invariants worth knowing before you change things:
   trigger `view.renderObjects(page)` — otherwise undo won't bring it back.
 - **Nothing may block the input path.** Pointer samples are queued and flushed
   once per animation frame. If you find yourself doing work per event, don't.
+- **The text layer's CSS is a contract, not styling.** `dist/styles/text-layer.css`
+  is extracted from pdfjs-dist at build time. Editing it by hand, or dropping the
+  scale variables `.page` declares, silently misplaces every span — the layer
+  still reports text, it is just in the wrong place.
 - **Layout is computed, not measured.** `PdfView` derives page positions from
   its own constants and the edge insets. Reading layout back from the DOM inside
   a zoom or scroll handler reintroduces the stutter that motivated this.

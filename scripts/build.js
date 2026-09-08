@@ -25,12 +25,55 @@ function copyDir(from, to) {
   return true;
 }
 
+/**
+ * Pull the text-layer rules out of pdf.js's own stylesheet.
+ *
+ * The selectable text layer is a stack of absolutely positioned spans whose
+ * geometry pdf.js computes; its CSS is part of that contract, not decoration.
+ * Extracting it from the installed package rather than hand-copying it means it
+ * cannot silently drift out of step when pdfjs-dist is upgraded.
+ */
+function extractTextLayerCss() {
+  const source = path.join(pdfjs, 'web/pdf_viewer.css');
+  if (!fs.existsSync(source)) throw new Error(`pdf.js stylesheet not found at ${source}`);
+  const css = fs.readFileSync(source, 'utf8');
+
+  // Walk top-level rules, keeping the ones whose selector mentions textLayer.
+  const blocks = [];
+  let depth = 0;
+  let start = 0;
+  for (let i = 0; i < css.length; i += 1) {
+    const ch = css[i];
+    if (ch === '{') {
+      depth += 1;
+    } else if (ch === '}') {
+      depth -= 1;
+      if (depth === 0) {
+        const rule = css.slice(start, i + 1);
+        const selector = rule.slice(0, rule.indexOf('{'));
+        if (selector.includes('textLayer')) blocks.push(rule.trim());
+        start = i + 1;
+      }
+    }
+  }
+  if (!blocks.length) throw new Error('no .textLayer rules found in pdf_viewer.css');
+
+  return [
+    '/* Extracted from pdfjs-dist/web/pdf_viewer.css by scripts/build.js.',
+    ' * Do not edit: this is part of pdf.js\'s text-layer geometry contract. */',
+    '',
+    ...blocks,
+    '',
+  ].join('\n');
+}
+
 // pdf.js resolves the worker and its font/cmap tables by URL at runtime, so they
 // have to exist as real files next to index.html rather than inside the bundle.
 function stageAssets() {
   fs.mkdirSync(dist, { recursive: true });
   fs.copyFileSync(path.join(root, 'src/renderer/index.html'), path.join(dist, 'index.html'));
   copyDir(path.join(root, 'src/renderer/styles'), path.join(dist, 'styles'));
+  fs.writeFileSync(path.join(dist, 'styles/text-layer.css'), extractTextLayerCss());
 
   const worker = path.join(pdfjs, 'build/pdf.worker.mjs');
   if (!fs.existsSync(worker)) throw new Error(`pdf.js worker not found at ${worker}`);

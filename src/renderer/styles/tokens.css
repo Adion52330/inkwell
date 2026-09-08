@@ -76,18 +76,18 @@
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
-    --bg: #000000;
-    --bg-elevated: #1c1c1e;
-    --surface: rgba(44, 44, 46, 0.72);
-    --surface-solid: #2c2c2e;
-    --surface-sunken: #1c1c1e;
-    --page-shadow: 0 1px 2px rgba(0, 0, 0, 0.5), 0 12px 32px rgba(0, 0, 0, 0.55);
+    --bg: #232326;
+    --bg-elevated: #2b2b2f;
+    --surface: rgba(58, 58, 63, 0.72);
+    --surface-solid: #35353a;
+    --surface-sunken: #2b2b2f;
+    --page-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 14px 34px rgba(0, 0, 0, 0.45);
 
     --label: #ffffff;
     --label-secondary: rgba(235, 235, 245, 0.6);
     --label-tertiary: rgba(235, 235, 245, 0.3);
     --separator: rgba(84, 84, 88, 0.65);
-    --separator-opaque: #38383a;
+    --separator-opaque: #414147;
 
     --accent: #0a84ff;
     --accent-hover: #409cff;
@@ -100,7 +100,7 @@
     --toolbar-border: rgba(255, 255, 255, 0.08);
     --toolbar-shadow: 0 0 0 0.5px rgba(255, 255, 255, 0.06), 0 8px 28px rgba(0, 0, 0, 0.6);
 
-    --glass-bg: rgba(38, 38, 42, 0.76);
+    --glass-bg: rgba(54, 54, 60, 0.76);
     --glass-rim: rgba(255, 255, 255, 0.16);
     --glass-highlight: rgba(255, 255, 255, 0.22);
     --glass-shadow:
@@ -112,23 +112,23 @@
 
 /* An explicit choice always wins over the system preference. */
 :root[data-theme='dark'] {
-  --bg: #000000;
-  --bg-elevated: #1c1c1e;
-  --surface: rgba(44, 44, 46, 0.72);
-  --surface-solid: #2c2c2e;
-  --surface-sunken: #1c1c1e;
-  --page-shadow: 0 1px 2px rgba(0, 0, 0, 0.5), 0 12px 32px rgba(0, 0, 0, 0.55);
+  --bg: #232326;
+  --bg-elevated: #2b2b2f;
+  --surface: rgba(58, 58, 63, 0.72);
+  --surface-solid: #35353a;
+  --surface-sunken: #2b2b2f;
+  --page-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 14px 34px rgba(0, 0, 0, 0.45);
   --label: #ffffff;
   --label-secondary: rgba(235, 235, 245, 0.6);
   --label-tertiary: rgba(235, 235, 245, 0.3);
   --separator: rgba(84, 84, 88, 0.65);
-  --separator-opaque: #38383a;
+  --separator-opaque: #414147;
   --accent: #0a84ff;
   --accent-hover: #409cff;
   --toolbar-bg: rgba(30, 30, 32, 0.8);
   --toolbar-border: rgba(255, 255, 255, 0.08);
   --toolbar-shadow: 0 0 0 0.5px rgba(255, 255, 255, 0.06), 0 8px 28px rgba(0, 0, 0, 0.6);
-  --glass-bg: rgba(38, 38, 42, 0.76);
+  --glass-bg: rgba(54, 54, 60, 0.76);
   --glass-rim: rgba(255, 255, 255, 0.16);
   --glass-highlight: rgba(255, 255, 255, 0.22);
   --glass-shadow:

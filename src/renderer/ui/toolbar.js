@@ -45,6 +45,7 @@ const TOOLS = [
   { id: 'note', icon: 'note', label: 'Sticky note', key: '6' },
   { id: 'shapes', icon: 'shapes', label: 'Shapes', key: '7', tool: 'shape' },
   { divider: true },
+  { id: 'select', icon: 'selectText', label: 'Select text', key: '8' },
   { id: 'hand', icon: 'hand', label: 'Pan', key: 'H' },
 ];
 
