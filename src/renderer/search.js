@@ -14,18 +14,60 @@
 // count climbs as it goes rather than freezing the window until it finishes.
 
 const HIGHLIGHT_BUDGET = 500;
+const SNIPPET_CONTEXT = 42;
 
-/** Fold case and collapse whitespace so a search behaves the way people expect. */
-function normalize(text) {
-  return text.toLowerCase().replace(/\s+/g, ' ');
+/** A little of the surrounding line, for the results list. */
+function snippetAround(text, start, end) {
+  const from = Math.max(0, start - SNIPPET_CONTEXT);
+  const to = Math.min(text.length, end + SNIPPET_CONTEXT);
+  return {
+    before: (from > 0 ? '…' : '') + text.slice(from, start).replace(/\s+/g, ' '),
+    hit: text.slice(start, end).replace(/\s+/g, ' '),
+    after: text.slice(end, to).replace(/\s+/g, ' ') + (to < text.length ? '…' : ''),
+  };
 }
+
+/**
+ * Fold case and collapse whitespace so a search behaves the way people expect,
+ * keeping a map back to the original offsets.
+ *
+ * The map is the point. Collapsing runs of whitespace changes the length of the
+ * string, so an offset found in the folded text does not address the same
+ * character in the raw text — and the raw offsets are what the DOM ranges and
+ * the snippets need. Searching the folded text and then reading the raw text at
+ * the folded offset silently highlights the wrong words on any page that
+ * contains a double space.
+ */
+function buildIndex(text) {
+  let normalized = '';
+  const map = [];
+  let lastWasSpace = false;
+  for (let i = 0; i < text.length; i += 1) {
+    const ch = text[i];
+    if (/\s/.test(ch)) {
+      if (lastWasSpace) continue;
+      normalized += ' ';
+      map.push(i);
+      lastWasSpace = true;
+    } else {
+      // Take one character: a few code points lengthen when lowercased, which
+      // would put the map out of step with the string.
+      normalized += ch.toLowerCase()[0] ?? ch;
+      map.push(i);
+      lastWasSpace = false;
+    }
+  }
+  return { normalized, map, raw: text };
+}
+
+const foldQuery = (query) => query.toLowerCase().replace(/\s+/g, ' ').trim();
 
 export class Search extends EventTarget {
   constructor({ view, store }) {
     super();
     this.view = view;
     this.store = store;
-    /** @type {Map<number, string>} page index → concatenated text */
+    /** @type {Map<number, {normalized, map, raw}>} page index → search index */
     this.pageText = new Map();
     this.matches = [];
     this.current = -1;
@@ -50,36 +92,34 @@ export class Search extends EventTarget {
     this.#emit();
   }
 
-  /** Text of a page, from its rendered layer when possible, else from pdf.js. */
-  async #textFor(index) {
+  /** Search index of a page, from its rendered layer when possible. */
+  async #indexFor(index) {
     if (this.pageText.has(index)) return this.pageText.get(index);
 
-    // A rendered page already has the exact strings the spans were built from.
+    let text = '';
+    // A rendered page already has the exact strings the spans were built from,
+    // so offsets map straight onto the DOM.
     const layer = this.view.textLayerFor(index);
     if (layer?.textContentItemsStr) {
-      const text = layer.textContentItemsStr.join('');
-      this.pageText.set(index, text);
-      return text;
+      text = layer.textContentItemsStr.join('');
+    } else {
+      const source = this.view.sourceForPage(index);
+      if (source) {
+        try {
+          const page = await source.doc.getPage(source.pageNumber);
+          const content = await page.getTextContent({
+            includeMarkedContent: true,
+            disableNormalization: true,
+          });
+          text = content.items.map((item) => item.str ?? '').join('');
+        } catch {
+          text = '';
+        }
+      }
     }
-
-    const source = this.view.sourceForPage(index);
-    if (!source) {
-      this.pageText.set(index, '');
-      return '';
-    }
-    try {
-      const page = await source.doc.getPage(source.pageNumber);
-      const content = await page.getTextContent({
-        includeMarkedContent: true,
-        disableNormalization: true,
-      });
-      const text = content.items.map((item) => item.str ?? '').join('');
-      this.pageText.set(index, text);
-      return text;
-    } catch {
-      this.pageText.set(index, '');
-      return '';
-    }
+    const built = buildIndex(text);
+    this.pageText.set(index, built);
+    return built;
   }
 
   /**
@@ -93,7 +133,7 @@ export class Search extends EventTarget {
     this.current = -1;
     this.clearHighlights();
 
-    const needle = normalize(query);
+    const needle = foldQuery(query);
     if (needle.length < 1) {
       this.scanning = false;
       this.#emit();
@@ -106,15 +146,23 @@ export class Search extends EventTarget {
     const count = this.store.pageCount;
     for (let i = 0; i < count; i += 1) {
       if (token !== this.token) return; // superseded by a newer query
-      const text = await this.#textFor(i);
+      const { normalized, map, raw } = await this.#indexFor(i);
       if (token !== this.token) return;
 
-      const haystack = normalize(text);
       let from = 0;
       for (;;) {
-        const at = haystack.indexOf(needle, from);
+        const at = normalized.indexOf(needle, from);
         if (at === -1) break;
-        this.matches.push({ page: i, start: at, end: at + needle.length });
+        // Back to raw offsets, which is what both the DOM ranges and the
+        // snippet below are expressed in.
+        const start = map[at];
+        const end = (map[at + needle.length - 1] ?? start) + 1;
+        this.matches.push({
+          page: i,
+          start,
+          end,
+          snippet: snippetAround(raw, start, end),
+        });
         from = at + Math.max(1, needle.length);
       }
 
@@ -131,6 +179,13 @@ export class Search extends EventTarget {
     }
 
     this.scanning = false;
+    this.#emit();
+  }
+
+  goTo(index) {
+    if (index < 0 || index >= this.matches.length) return;
+    this.current = index;
+    this.#reveal();
     this.#emit();
   }
 
@@ -247,6 +302,7 @@ export class Search extends EventTarget {
       total: this.matches.length,
       index: this.current,
       scanning: this.scanning,
+      matches: this.matches,
     };
   }
 

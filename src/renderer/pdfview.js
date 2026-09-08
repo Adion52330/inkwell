@@ -26,6 +26,15 @@ export const ZOOM_PRESETS = [0.5, 0.75, 1, 1.25, 1.5, 2, 3, 4];
 
 const clamp = (value, lo, hi) => (value < lo ? lo : value > hi ? hi : value);
 
+// On a 1x display, rasterising one canvas pixel per CSS pixel gives glyph edges
+// no room to antialias and text reads as soft. Rendering above the display's
+// density and letting the browser downsample restores that, at the cost of
+// memory — hence the budget below, which also keeps a page at extreme zoom from
+// asking for a canvas the GPU will refuse.
+const OVERSAMPLE = 1.5;
+const MAX_CANVAS_PIXELS = 36e6;
+const MAX_CANVAS_DIMENSION = 12000;
+
 export class PdfView extends EventTarget {
   constructor({ container, store, tools }) {
     super();
@@ -282,7 +291,7 @@ export class PdfView extends EventTarget {
    * ignore zoom, device pixel ratio and rotation entirely.
    */
   #setPageTransform(ctx, index) {
-    this.applyPageTransform(ctx, index, this.scale * this.dpr);
+    this.applyPageTransform(ctx, index, this.scale * this.rasterFactor(index));
   }
 
   /**
@@ -307,10 +316,28 @@ export class PdfView extends EventTarget {
     }
   }
 
+  /**
+   * CSS pixels → backing-store pixels for a page.
+   *
+   * Above the display density for smoother text, then pulled back if the page
+   * would exceed the canvas budget — a very deep zoom degrades gently instead
+   * of failing to allocate.
+   */
+  rasterFactor(index) {
+    const { width, height } = this.displaySize(index);
+    let factor = this.dpr < 1.5 ? this.dpr * OVERSAMPLE : this.dpr;
+    const area = width * height * factor * factor;
+    if (area > MAX_CANVAS_PIXELS) factor *= Math.sqrt(MAX_CANVAS_PIXELS / area);
+    const longest = Math.max(width, height) * factor;
+    if (longest > MAX_CANVAS_DIMENSION) factor *= MAX_CANVAS_DIMENSION / longest;
+    return factor;
+  }
+
   #sizeCanvas(canvas, index) {
     const { width, height } = this.displaySize(index);
-    const backingWidth = Math.max(1, Math.round(width * this.dpr));
-    const backingHeight = Math.max(1, Math.round(height * this.dpr));
+    const factor = this.rasterFactor(index);
+    const backingWidth = Math.max(1, Math.round(width * factor));
+    const backingHeight = Math.max(1, Math.round(height * factor));
     if (canvas.width !== backingWidth || canvas.height !== backingHeight) {
       canvas.width = backingWidth;
       canvas.height = backingHeight;
@@ -348,7 +375,9 @@ export class PdfView extends EventTarget {
     const el = this.pageEls[index];
     if (!el) return;
     const canvas = el.querySelector('.pdf-layer');
-    const signature = `${this.scale.toFixed(3)}:${this.dpr}:${this.store.page(index)?.rotation || 0}`;
+    const signature = `${this.scale.toFixed(3)}:${this.rasterFactor(index).toFixed(3)}:${
+      this.store.page(index)?.rotation || 0
+    }`;
     if (el.dataset.rendered === signature) {
       this.repaintInk(index);
       this.#renderObjects(index);
@@ -378,7 +407,7 @@ export class PdfView extends EventTarget {
           this.#sizeCanvas(canvas, index);
         }
         const rotation = (page.rotate + (this.store.page(index)?.rotation || 0)) % 360;
-        const viewport = page.getViewport({ scale: this.scale * this.dpr, rotation });
+        const viewport = page.getViewport({ scale: this.scale * this.rasterFactor(index), rotation });
         const task = page.render({ canvasContext: ctx, viewport });
         el._renderTask = task;
         await task.promise;

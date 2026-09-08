@@ -4,8 +4,9 @@ import { Store } from './store.js';
 import { PdfView, ZOOM_PRESETS } from './pdfview.js';
 import { InkEngine } from './ink.js';
 import { Toolbar } from './ui/toolbar.js';
-import { Thumbnails } from './ui/thumbnails.js';
+import { Sidebar } from './ui/sidebar.js';
 import { BrushCursor } from './ui/cursor.js';
+import { DropdownMenu } from './ui/menu.js';
 import { icon } from './ui/icons.js';
 import { buildAnnotatedPdf, suggestExportName } from './export.js';
 import { Search } from './search.js';
@@ -69,13 +70,13 @@ const dropVeil = $('drop-veil');
 const store = new Store();
 const view = new PdfView({ container: viewerEl, store, tools });
 const ink = new InkEngine({ viewer: viewerEl, store, tools, view });
-const thumbs = new Thumbnails({ mount: bodyEl, store, view });
+const sidebar = new Sidebar({ mount: bodyEl, store, view });
 const toolbar = new Toolbar({ mount: bodyEl, tools });
 const brushCursor = new BrushCursor({ viewer: viewerEl, tools, view });
 const search = new Search({ view, store });
 
 // The sidebar must sit before the viewer in the flex row.
-bodyEl.insertBefore(thumbs.el, viewerEl);
+bodyEl.insertBefore(sidebar.el, viewerEl);
 
 let originalBytes = null;
 let currentPath = null;
@@ -96,6 +97,7 @@ for (const [id, name] of [
 ]) {
   $(id).innerHTML = icon(name);
 }
+$('btn-more').innerHTML = icon('more');
 $('welcome-mark').innerHTML = icon('pen', 40);
 
 $('btn-open').addEventListener('click', () => openViaDialog());
@@ -127,7 +129,7 @@ function stepZoom(direction) {
 // --- zoom menu --------------------------------------------------------------
 
 const zoomMenu = document.createElement('div');
-zoomMenu.className = 'zoom-menu';
+zoomMenu.className = 'menu zoom-menu';
 zoomMenu.hidden = true;
 document.body.append(zoomMenu);
 
@@ -136,8 +138,9 @@ function buildZoomMenu() {
   const item = (label, detail, onPick, isCurrent = false) => {
     const button = document.createElement('button');
     button.type = 'button';
-    button.className = `zoom-item${isCurrent ? ' on' : ''}`;
+    button.className = `menu-item zoom-item${isCurrent ? ' on' : ''}`;
     const name = document.createElement('span');
+    name.className = 'menu-label';
     name.textContent = label;
     button.append(name);
     if (detail) {
@@ -155,7 +158,7 @@ function buildZoomMenu() {
   item('Fit width', 'Ctrl 1', () => view.applyFit('width'), view.fitMode === 'width');
   item('Fit page', 'Ctrl 2', () => view.applyFit('page'), view.fitMode === 'page');
   const rule = document.createElement('div');
-  rule.className = 'zoom-rule';
+  rule.className = 'menu-rule';
   zoomMenu.append(rule);
   for (const preset of ZOOM_PRESETS) {
     item(
@@ -190,8 +193,14 @@ document.addEventListener('pointerdown', (event) => {
   closeZoomMenu();
 });
 
-function toggleSidebar() {
-  const open = thumbs.toggle();
+function toggleSidebar(tab) {
+  if (tab && !sidebar.open) sidebar.setTab(tab);
+  else if (tab && sidebar.tab !== tab) {
+    sidebar.setTab(tab);
+    $('btn-sidebar').classList.add('on');
+    return;
+  }
+  const open = sidebar.toggle();
   $('btn-sidebar').classList.toggle('on', open);
   // The sidebar takes width away from the viewer, so a fitted document has to
   // be refitted or it starts overflowing horizontally. Wait for the slide
@@ -219,6 +228,10 @@ function openSearch() {
   if (!store.doc) return;
   searchBar.hidden = false;
   requestAnimationFrame(() => searchBar.classList.add('on'));
+  // Results live in the sidebar, so bring it out with the find bar rather than
+  // making the page count the only thing you can see.
+  if (!sidebar.open) toggleSidebar('results');
+  else sidebar.setTab('results');
   searchInput.focus();
   searchInput.select();
 }
@@ -228,6 +241,8 @@ function closeSearch() {
   searchBar.hidden = true;
   search.reset();
   searchCount.textContent = '';
+  // Hand the sidebar back to the pages it was showing before.
+  if (sidebar.tab === 'results') sidebar.setTab('pages');
 }
 
 $('search-close').addEventListener('click', closeSearch);
@@ -242,7 +257,9 @@ searchInput.addEventListener('input', () => {
 });
 
 searchInput.addEventListener('keydown', (event) => {
-  event.stopPropagation(); // typing must not trigger tool shortcuts
+  // Typing must not trigger tool shortcuts, but Ctrl-combinations still should:
+  // Ctrl+F from inside the field, for instance, or Ctrl+G for the next match.
+  if (!event.ctrlKey && !event.metaKey) event.stopPropagation();
   if (event.key === 'Enter') {
     event.preventDefault();
     if (event.shiftKey) search.previous();
@@ -264,6 +281,7 @@ search.addEventListener('status', (event) => {
   searchBar.classList.toggle('empty', !!query && !total && !scanning);
   $('search-next').disabled = total === 0;
   $('search-prev').disabled = total === 0;
+  if (sidebar.open && sidebar.tab === 'results') sidebar.renderResults(event.detail);
 });
 
 // --- page indicator ---------------------------------------------------------
@@ -301,6 +319,93 @@ pageInput.addEventListener('keydown', (event) => {
   }
 });
 pageInput.addEventListener('blur', () => showPageNumber(view.currentPage));
+
+// --- overflow menu ----------------------------------------------------------
+
+// Recents are fetched asynchronously but the menu is built synchronously when
+// it opens, so the last known list is kept here.
+let recentFiles = [];
+
+const overflowMenu = new DropdownMenu({
+  anchor: $('btn-more'),
+  align: 'right',
+  className: 'overflow-menu',
+  items: () => {
+    const hasDoc = !!store.doc;
+    return [
+      { label: 'Open PDF…', hint: 'Ctrl O', onSelect: () => openViaDialog() },
+      ...(recentFiles.length
+        ? [
+            { heading: 'Recent' },
+            ...recentFiles.slice(0, 5).map((entry) => ({
+              label: entry.name,
+              title: entry.path,
+              onSelect: () => openDocument(entry.path),
+            })),
+          ]
+        : []),
+      { separator: true },
+      { label: 'Save notes', hint: 'Ctrl S', disabled: !hasDoc, onSelect: () => command('save') },
+      {
+        label: 'Export annotated PDF…',
+        hint: 'Ctrl E',
+        disabled: !hasDoc,
+        onSelect: () => exportDocument(),
+      },
+      { separator: true },
+      { label: 'Undo', hint: 'Ctrl Z', disabled: !store.canUndo, onSelect: () => command('undo') },
+      {
+        label: 'Redo',
+        hint: 'Ctrl ⇧ Z',
+        disabled: !store.canRedo,
+        onSelect: () => command('redo'),
+      },
+      {
+        label: 'Select all ink',
+        hint: 'Ctrl A',
+        disabled: !hasDoc,
+        onSelect: () => command('select-all'),
+      },
+      {
+        label: 'Delete selection',
+        hint: 'Del',
+        disabled: ink.selection.pageIndex < 0,
+        onSelect: () => command('delete'),
+      },
+      { separator: true },
+      { label: 'Find…', hint: 'Ctrl F', disabled: !hasDoc, onSelect: () => openSearch() },
+      {
+        label: 'Pages sidebar',
+        hint: 'Ctrl B',
+        checked: sidebar.open,
+        onSelect: () => toggleSidebar('pages'),
+      },
+      { separator: true },
+      { heading: 'Pages' },
+      {
+        label: 'Insert blank page after this one',
+        disabled: !hasDoc,
+        onSelect: () => command('insert-page'),
+      },
+      { label: 'Append a PDF…', disabled: !hasDoc, onSelect: () => command('append-pdf') },
+      { separator: true },
+      { label: 'Fit width', hint: 'Ctrl 1', disabled: !hasDoc, onSelect: () => view.applyFit('width') },
+      { label: 'Fit page', hint: 'Ctrl 2', disabled: !hasDoc, onSelect: () => view.applyFit('page') },
+      { label: 'Actual size', hint: 'Ctrl 0', disabled: !hasDoc, onSelect: () => view.zoomTo(1) },
+      { separator: true },
+      { label: 'Full screen', hint: 'F11', onSelect: () => api.toggleFullScreen() },
+      { label: 'Developer tools', hint: 'Ctrl ⇧ I', onSelect: () => api.toggleDevTools() },
+      { separator: true },
+      {
+        label: 'Close document',
+        hint: 'Ctrl W',
+        disabled: !hasDoc,
+        onSelect: () => command('close-doc'),
+      },
+      { label: 'Quit Inkwell', hint: 'Ctrl Q', danger: true, onSelect: () => api.quit() },
+    ];
+  },
+});
 
 // --- toast ------------------------------------------------------------------
 
@@ -355,7 +460,7 @@ async function openDocument(filePath) {
     titleEl.firstChild.textContent = file.name;
     updateSubtitle();
     document.title = `${file.name} — Inkwell`;
-    if (thumbs.open) thumbs.rebuild();
+    if (sidebar.open) sidebar.refresh();
     updateHistoryButtons();
   } catch (err) {
     console.error(err);
@@ -423,7 +528,7 @@ store.addEventListener('change', (event) => {
   if (structural) {
     view.layout();
     view.refreshAll();
-    if (thumbs.open) thumbs.rebuild();
+    if (sidebar.open) sidebar.refresh();
   } else if (pages) {
     for (const index of pages) {
       view.repaintInk(index);
@@ -431,11 +536,12 @@ store.addEventListener('change', (event) => {
       // need their own rebuild — otherwise a deleted note stays on screen and
       // an undone deletion never comes back.
       view.renderObjects(index);
-      if (thumbs.open) thumbs.invalidate(index);
+      if (sidebar.open && sidebar.tab === 'pages') sidebar.invalidate(index);
     }
   }
   updateHistoryButtons();
   updateSubtitle();
+  if (sidebar.open && sidebar.tab === 'history') sidebar.renderHistory();
   if (store.doc) pageTotalEl.textContent = String(store.pageCount);
   scheduleSave();
 });
@@ -650,8 +756,52 @@ function isEditing(target) {
   );
 }
 
+/**
+ * Shortcuts that used to come from the native menu bar. With the menu gone they
+ * have to be bound here — which is also the only place that can tell whether a
+ * text box has focus, so typing never triggers them.
+ */
+function handleModifierShortcut(event) {
+  const key = event.key.toLowerCase();
+  const shift = event.shiftKey;
+  const actions = {
+    o: () => command('open'),
+    s: () => command('save'),
+    e: () => command('export'),
+    w: () => command('close-doc'),
+    q: () => api.quit(),
+    z: () => command(shift ? 'redo' : 'undo'),
+    y: () => command('redo'),
+    a: () => command('select-all'),
+    f: () => openSearch(),
+    g: () => command(shift ? 'find-previous' : 'find-next'),
+    b: () => toggleSidebar(),
+    i: () => (shift ? api.toggleDevTools() : null),
+    0: () => view.zoomTo(1),
+    1: () => view.applyFit('width'),
+    2: () => view.applyFit('page'),
+    '=': () => stepZoom(1),
+    '+': () => stepZoom(1),
+    '-': () => stepZoom(-1),
+    _: () => stepZoom(-1),
+  };
+  const action = actions[key];
+  if (!action) return false;
+  // Copy is left to the platform so selecting PDF text and pressing Ctrl+C
+  // behaves normally.
+  event.preventDefault();
+  action();
+  return true;
+}
+
 window.addEventListener('keydown', (event) => {
   if (isEditing(event.target)) return;
+
+  if (event.key === 'F11') {
+    event.preventDefault();
+    api.toggleFullScreen();
+    return;
+  }
 
   if (event.key === 'Escape') {
     ink.clearSelection();
@@ -665,7 +815,11 @@ window.addEventListener('keydown', (event) => {
     ink.deleteSelection();
     return;
   }
-  if (event.ctrlKey || event.metaKey || event.altKey) return;
+  if (event.ctrlKey || event.metaKey) {
+    handleModifierShortcut(event);
+    return;
+  }
+  if (event.altKey) return;
 
   const tool = TOOL_KEYS[event.key];
   if (tool) {
@@ -789,16 +943,23 @@ view.addEventListener('zoom', () => {
   brushCursor.update();
 });
 view.addEventListener('page', (event) => {
-  thumbs.setCurrent(event.detail.page);
+  sidebar.setCurrent(event.detail.page);
   showPageNumber(event.detail.page);
 });
 
-thumbs.addEventListener('goto', (event) => view.scrollToPage(event.detail.page));
-thumbs.addEventListener('warn', (event) => toast(event.detail.message, 'warn'));
-thumbs.addEventListener('structural', () => {
+sidebar.addEventListener('goto', (event) => view.scrollToPage(event.detail.page));
+sidebar.addEventListener('goto-match', (event) => search.goTo(event.detail.index));
+sidebar.addEventListener('travel', (event) => {
+  if (store.travelTo(event.detail.count)) ink.clearSelection();
+});
+sidebar.addEventListener('tab', (event) => {
+  if (event.detail.tab === 'results') sidebar.renderResults(search.status);
+});
+sidebar.addEventListener('warn', (event) => toast(event.detail.message, 'warn'));
+sidebar.addEventListener('structural', () => {
   view.layout();
   view.refreshAll();
-  thumbs.rebuild();
+  sidebar.rebuild();
 });
 
 // --- drag and drop ----------------------------------------------------------
@@ -829,6 +990,7 @@ window.addEventListener('drop', async (event) => {
 
 async function renderRecents() {
   const list = await api.getRecents();
+  recentFiles = list;
   const box = $('recents');
   if (!list.length) {
     box.hidden = true;

@@ -48,7 +48,6 @@ async function pushRecent(filePath) {
     /* recents are a convenience; never block opening a document over them */
   }
   app.addRecentDocument(filePath);
-  buildMenu();
   return next;
 }
 
@@ -125,106 +124,18 @@ function createWindow() {
     shell.openExternal(url);
     return { action: 'deny' };
   });
-
-  buildMenu();
 }
 
 function send(command, payload) {
   if (win && !win.isDestroyed()) win.webContents.send('menu', command, payload);
 }
 
-function buildMenu() {
-  readRecents().then((recents) => {
-    const template = [
-      {
-        label: 'File',
-        submenu: [
-          { label: 'Open PDF…', accelerator: 'CmdOrCtrl+O', click: () => send('open') },
-          {
-            label: 'Open Recent',
-            submenu: recents.length
-              ? [
-                  ...recents.map((entry) => ({
-                    label: entry.name,
-                    click: () => send('open-path', entry.path),
-                  })),
-                  { type: 'separator' },
-                  { label: 'Clear Menu', click: () => send('clear-recents') },
-                ]
-              : [{ label: 'No Recent Documents', enabled: false }],
-          },
-          { type: 'separator' },
-          { label: 'Save Notes', accelerator: 'CmdOrCtrl+S', click: () => send('save') },
-          {
-            label: 'Export Annotated PDF…',
-            accelerator: 'CmdOrCtrl+E',
-            click: () => send('export'),
-          },
-          { type: 'separator' },
-          { label: 'Close Document', accelerator: 'CmdOrCtrl+W', click: () => send('close-doc') },
-          { role: 'quit' },
-        ],
-      },
-      {
-        label: 'Edit',
-        submenu: [
-          { label: 'Undo', accelerator: 'CmdOrCtrl+Z', click: () => send('undo') },
-          { label: 'Redo', accelerator: 'CmdOrCtrl+Shift+Z', click: () => send('redo') },
-          { type: 'separator' },
-          { role: 'copy' },
-          { type: 'separator' },
-          { label: 'Find…', accelerator: 'CmdOrCtrl+F', click: () => send('find') },
-          { label: 'Find Next', accelerator: 'CmdOrCtrl+G', click: () => send('find-next') },
-          {
-            label: 'Find Previous',
-            accelerator: 'CmdOrCtrl+Shift+G',
-            click: () => send('find-previous'),
-          },
-          { type: 'separator' },
-          { label: 'Delete Selection', click: () => send('delete') },
-          { label: 'Select All Ink', accelerator: 'CmdOrCtrl+A', click: () => send('select-all') },
-        ],
-      },
-      {
-        // No accelerators here on purpose. Electron menu accelerators are
-        // global, so a bare "1" or "H" would be swallowed before it could reach
-        // a text box the user is typing into. The renderer binds these keys
-        // itself, where it can tell whether an editor has focus.
-        label: 'Tools',
-        submenu: [
-          { label: 'Pen', click: () => send('tool', 'pen') },
-          { label: 'Highlighter', click: () => send('tool', 'highlighter') },
-          { label: 'Eraser', click: () => send('tool', 'eraser') },
-          { label: 'Lasso', click: () => send('tool', 'lasso') },
-          { label: 'Text Box', click: () => send('tool', 'text') },
-          { label: 'Sticky Note', click: () => send('tool', 'note') },
-          { label: 'Shapes', click: () => send('tool', 'shape') },
-          { type: 'separator' },
-          { label: 'Select Text', click: () => send('tool', 'select') },
-          { label: 'Hand / Pan', click: () => send('tool', 'hand') },
-          { type: 'separator' },
-          { label: 'Insert Blank Page After Current', click: () => send('insert-page') },
-          { label: 'Append PDF…', click: () => send('append-pdf') },
-        ],
-      },
-      {
-        label: 'View',
-        submenu: [
-          { label: 'Zoom In', accelerator: 'CmdOrCtrl+Plus', click: () => send('zoom-in') },
-          { label: 'Zoom Out', accelerator: 'CmdOrCtrl+-', click: () => send('zoom-out') },
-          { label: 'Actual Size', accelerator: 'CmdOrCtrl+0', click: () => send('zoom-reset') },
-          { label: 'Fit Width', accelerator: 'CmdOrCtrl+1', click: () => send('fit-width') },
-          { label: 'Fit Page', accelerator: 'CmdOrCtrl+2', click: () => send('fit-page') },
-          { type: 'separator' },
-          { label: 'Toggle Pages Sidebar', accelerator: 'CmdOrCtrl+B', click: () => send('sidebar') },
-          { type: 'separator' },
-          { role: 'togglefullscreen' },
-          { label: 'Toggle Developer Tools', accelerator: 'CmdOrCtrl+Shift+I', role: 'toggledevtools' },
-        ],
-      },
-    ];
-    Menu.setApplicationMenu(Menu.buildFromTemplate(template));
-  });
+// The application menu bar is removed: its contents live in the overflow (⋯)
+// menu in the app's own toolbar instead. Every accelerator the menu used to
+// provide is bound in the renderer, which is also where it can tell whether a
+// text box has focus.
+function clearMenu() {
+  Menu.setApplicationMenu(null);
 }
 
 // ---------------------------------------------------------------------------
@@ -324,7 +235,6 @@ ipcMain.handle('recents:clear', async () => {
     /* ignore */
   }
   app.clearRecentDocuments();
-  buildMenu();
   return [];
 });
 
@@ -352,6 +262,11 @@ ipcMain.on('window:close-now', () => {
   rendererDirty = false;
   if (win && !win.isDestroyed()) win.close();
 });
+
+// Window-level actions that used to be menu roles.
+ipcMain.on('window:fullscreen', () => win?.setFullScreen(!win.isFullScreen()));
+ipcMain.on('window:devtools', () => win?.webContents.toggleDevTools());
+ipcMain.on('app:quit', () => app.quit());
 
 // Renderer reports it is ready; hand over any file from argv or an OS open event.
 ipcMain.on('renderer:ready', () => {
@@ -392,6 +307,7 @@ if (!app.requestSingleInstanceLock()) {
   });
 
   app.whenReady().then(() => {
+    clearMenu();
     pendingPath = pdfFromArgv(process.argv);
     createWindow();
     app.on('activate', () => {

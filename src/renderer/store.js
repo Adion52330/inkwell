@@ -14,6 +14,8 @@ const uid = () => crypto.randomUUID();
 
 export const SCHEMA_VERSION = 1;
 
+const OBJECT_LABELS = { text: 'text box', note: 'note', shape: 'shape' };
+
 /** Tools that produce freehand strokes rather than placed objects. */
 export const STROKE_TOOLS = new Set(['pen', 'highlighter']);
 
@@ -33,6 +35,16 @@ export function strokeBBox(points, padding = 0) {
     if (y > y1) y1 = y;
   }
   return [x0 - padding, y0 - padding, x1 + padding, y1 + padding];
+}
+
+function describe(command) {
+  return {
+    id: command.id,
+    label: command.label || 'Edit',
+    at: command.at,
+    page: command.pages?.[0] ?? null,
+    structural: !!command.structural,
+  };
 }
 
 export class Store extends EventTarget {
@@ -161,6 +173,9 @@ export class Store extends EventTarget {
   // observe the same single choke point.
   apply(command) {
     command.redo();
+    command.id = `c${(this.seq = (this.seq ?? 0) + 1)}`;
+    command.at = Date.now();
+    command.label = command.label || 'Edit';
     this.undoStack.push(command);
     if (this.undoStack.length > this.maxDepth) this.undoStack.shift();
     this.redoStack.length = 0;
@@ -183,6 +198,32 @@ export class Store extends EventTarget {
     this.undoStack.push(command);
     this.#changed(command.pages, command.structural);
     return true;
+  }
+
+  /**
+   * The edit history, oldest first, as the sidebar shows it. Entries past
+   * `applied` have been undone and would be reapplied by a redo.
+   */
+  history() {
+    const entries = [
+      ...this.undoStack.map((command) => ({ ...describe(command), undone: false })),
+      // The redo stack is a stack: its top is the next thing a redo would
+      // reapply, so reversing it puts these back into chronological order.
+      ...[...this.redoStack].reverse().map((command) => ({ ...describe(command), undone: true })),
+    ];
+    return { entries, applied: this.undoStack.length };
+  }
+
+  /**
+   * Undo or redo until exactly `count` commands are applied — what clicking an
+   * entry in the history panel does.
+   */
+  travelTo(count) {
+    const target = Math.max(0, Math.min(count, this.undoStack.length + this.redoStack.length));
+    let moved = false;
+    while (this.undoStack.length > target && this.undo()) moved = true;
+    while (this.undoStack.length < target && this.redo()) moved = true;
+    return moved;
   }
 
   get canUndo() {
@@ -212,6 +253,7 @@ export class Store extends EventTarget {
     const page = this.page(pageIndex);
     this.apply({
       pages: [pageIndex],
+      label: entry.tool === 'highlighter' ? 'Highlight' : 'Pen stroke',
       redo: () => page.strokes.push(entry),
       undo: () => {
         const at = page.strokes.indexOf(entry);
@@ -232,6 +274,7 @@ export class Store extends EventTarget {
     if (!removed.length) return false;
     this.apply({
       pages: [pageIndex],
+      label: `Erased ${removed.length} stroke${removed.length === 1 ? '' : 's'}`,
       redo: () => {
         for (let i = removed.length - 1; i >= 0; i -= 1) page.strokes.splice(removed[i].index, 1);
       },
@@ -268,6 +311,7 @@ export class Store extends EventTarget {
     };
     this.apply({
       pages: [pageIndex],
+      label: 'Moved selection',
       redo: () => shift(dx, dy),
       undo: () => shift(-dx, -dy),
     });
@@ -280,6 +324,7 @@ export class Store extends EventTarget {
     const page = this.page(pageIndex);
     this.apply({
       pages: [pageIndex],
+      label: `Added ${OBJECT_LABELS[entry.kind] || 'object'}`,
       redo: () => page.objects.push(entry),
       undo: () => {
         const at = page.objects.indexOf(entry);
@@ -297,6 +342,7 @@ export class Store extends EventTarget {
     for (const key of Object.keys(patch)) before[key] = object[key];
     this.apply({
       pages: [pageIndex],
+      label: `Edited ${OBJECT_LABELS[object.kind] || 'object'}`,
       redo: () => Object.assign(object, patch),
       undo: () => Object.assign(object, before),
     });
@@ -312,6 +358,7 @@ export class Store extends EventTarget {
     if (!removed.length) return false;
     this.apply({
       pages: [pageIndex],
+      label: `Deleted ${removed.length} object${removed.length === 1 ? '' : 's'}`,
       redo: () => {
         for (let i = removed.length - 1; i >= 0; i -= 1) page.objects.splice(removed[i].index, 1);
       },
@@ -342,8 +389,10 @@ export class Store extends EventTarget {
     });
     if (!strokes.length && !objects.length) return false;
 
+    const total = strokes.length + objects.length;
     this.apply({
       pages: [pageIndex],
+      label: `Removed ${total} item${total === 1 ? '' : 's'}`,
       redo: () => {
         for (let i = strokes.length - 1; i >= 0; i -= 1) page.strokes.splice(strokes[i].index, 1);
         for (let i = objects.length - 1; i >= 0; i -= 1) page.objects.splice(objects[i].index, 1);
@@ -365,6 +414,7 @@ export class Store extends EventTarget {
     this.apply({
       pages: [pageIndex],
       structural: true,
+      label: `Rotated page ${pageIndex + 1}`,
       redo: () => {
         page.rotation = after;
       },
@@ -387,6 +437,7 @@ export class Store extends EventTarget {
     const page = { ...emptyPage(), inserted: true, size };
     this.apply({
       structural: true,
+      label: `Inserted page ${at + 1}`,
       redo: () => {
         doc.pages.splice(at, 0, page);
         doc.order.splice(at, 0, -1);
@@ -406,6 +457,7 @@ export class Store extends EventTarget {
     const source = doc.order[pageIndex];
     this.apply({
       structural: true,
+      label: `Deleted page ${pageIndex + 1}`,
       redo: () => {
         doc.pages.splice(pageIndex, 1);
         doc.order.splice(pageIndex, 1);
@@ -427,6 +479,7 @@ export class Store extends EventTarget {
     };
     this.apply({
       structural: true,
+      label: `Moved page ${from + 1} to ${to + 1}`,
       redo: () => move(from, to),
       undo: () => move(to, from),
     });
@@ -448,6 +501,7 @@ export class Store extends EventTarget {
     }));
     this.apply({
       structural: true,
+      label: `Appended ${count} page${count === 1 ? '' : 's'}`,
       redo: () => {
         doc.pages.push(...added);
         for (let i = 0; i < count; i += 1) doc.order.push(-1);

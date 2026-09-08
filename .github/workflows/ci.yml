@@ -6,6 +6,10 @@ on:
   pull_request:
   workflow_dispatch:
 
+env:
+  # Electron's setuid sandbox is not available on the runner.
+  ELECTRON_DISABLE_SANDBOX: 1
+
 jobs:
   test:
     name: Tests
@@ -20,28 +24,35 @@ jobs:
 
       - name: Install system dependencies
         # poppler-utils provides pdftoppm, which the tests use to rasterise
-        # exported PDFs; xvfb gives the two Electron suites a display.
+        # exported PDFs; xvfb gives the Electron suites a display.
         run: |
           sudo apt-get update
           sudo apt-get install -y poppler-utils xvfb libnss3 libgbm1 libasound2t64
           python3 -m pip install --quiet --break-system-packages Pillow
 
+      - name: Cache the Electron binary
+        # ~100 MB fetched by electron's postinstall. Keyed on the lockfile, so
+        # it is refetched only when the pinned version actually changes.
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/electron
+          key: electron-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: electron-${{ runner.os }}-
+
       - run: npm ci
+
+      - name: Ensure the Electron binary is present
+        # npm ci does not always run electron's postinstall — CI images are
+        # frequently configured with ignore-scripts — which leaves the package
+        # installed but the binary missing.
+        run: npm run ensure:electron
 
       - run: npm run build
 
-      - name: Export placement test
-        # Pure Node — no display needed.
-        run: npm run test:export
-
-      - name: Live stroke and object tests
-        # These launch the real application, so they need a virtual display.
-        # Electron's setuid sandbox is unavailable on the runner.
-        env:
-          ELECTRON_DISABLE_SANDBOX: 1
-        run: |
-          xvfb-run -a --server-args="-screen 0 1280x900x24" npm run test:live-stroke
-          xvfb-run -a --server-args="-screen 0 1280x900x24" npm run test:objects
+      - name: Run the test suite
+        # A screen larger than the 1280x900 window, so nothing is clipped: the
+        # tests address the page in client coordinates.
+        run: xvfb-run -a --server-args="-screen 0 1600x1200x24" npm test
 
   package:
     name: AppImage
@@ -54,6 +65,13 @@ jobs:
         with:
           node-version: 24
           cache: npm
+
+      - name: Cache the Electron binary
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/electron
+          key: electron-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: electron-${{ runner.os }}-
 
       - run: npm ci
 

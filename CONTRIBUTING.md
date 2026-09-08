@@ -20,7 +20,7 @@ npm start
 npm test
 ```
 
-Six suites, all of which check rendered output rather than internal state:
+Seven suites, all of which check rendered output rather than internal state:
 
 | Suite | What it proves |
 | --- | --- |
@@ -30,6 +30,7 @@ Six suites, all of which check rendered output rather than internal state:
 | `npm run test:zoom` | Zoom anchors on the point under the pointer, actually scales the page, and the preset menu applies a level. |
 | `npm run test:unsaved` | Closing with unsaved ink is held for confirmation; closing a saved document is not. |
 | `npm run test:text` | Text spans align with the glyphs beneath them, selection works, search highlights land on their match, and links navigate. |
+| `npm run test:sidebar` | Thumbnails keep their height when the list overflows, edit history records and travels, and search results group by page. |
 
 `scripts/lib/cdp.mjs` is the shared harness — launching the app with a
 throwaway profile, driving real input, reading back the ink canvas — and
@@ -37,7 +38,7 @@ throwaway profile, driving real input, reading back the ink canvas — and
 lines on top of those.
 
 They need `pdftoppm` (poppler-utils), Python 3 with Pillow, and a display for
-the five that launch the app (`xvfb-run -a npm test` works headless).
+the six that launch the app (`xvfb-run -a npm test` works headless).
 
 **Please test against rendered output, not against the maths.** Every
 coordinate bug this project has had would have passed a unit test written from
@@ -57,7 +58,8 @@ src/renderer/
   ink-render.js       stroke geometry and hit testing, shared with the exporter
   objects.js          text boxes and sticky notes as DOM
   export.js           flattening into a new PDF via pdf-lib
-  ui/                 tool palette, popovers, thumbnail sidebar, icons
+  search.js           find in document: scanning, ranges, highlights
+  ui/                 tool palette, popovers, sidebar (pages/results/history)
 ```
 
 A few invariants worth knowing before you change things:

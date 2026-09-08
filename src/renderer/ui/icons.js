@@ -42,6 +42,7 @@ export const icons = {
   plus: '<path d="M12 5v14M5 12h14"/>',
   append: '<rect x="3.5" y="5.5" width="11" height="14" rx="1.8"/><path d="M18 8v9M22 12.5h-8" transform="translate(-1.2)"/>',
   close: '<path d="M6 6l12 12M18 6L6 18"/>',
+  more: '<circle cx="5.5" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="18.5" cy="12" r="1.6" fill="currentColor" stroke="none"/>',
   search: '<circle cx="10.8" cy="10.8" r="6.3"/><path d="M15.4 15.4L20 20"/>',
   chevronUp: '<path d="M6.5 14.5L12 9l5.5 5.5"/>',
   chevronDown: '<path d="M6.5 9.5L12 15l5.5-5.5"/>',

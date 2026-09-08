@@ -25,6 +25,16 @@ export const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 export async function launch({ port, pdf, args = [], settleMs = 4500 }) {
   const root = process.cwd();
   const binary = process.env.INKWELL_BIN || path.join(root, 'node_modules/electron/dist/electron');
+  // Electron's postinstall does not always run — npm can be configured with
+  // ignore-scripts, and CI images often are — leaving the package installed but
+  // the binary absent. Say so plainly instead of failing later with a bare
+  // spawn ENOENT that names a path and nothing else.
+  if (!fs.existsSync(binary)) {
+    throw new Error(
+      `Electron binary not found at ${binary}\n` +
+        'Run `npm run ensure:electron` to download it.'
+    );
+  }
   const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'inkwell-profile-'));
 
   // A packaged build already knows its own app directory; only the development

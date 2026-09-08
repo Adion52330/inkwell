@@ -37,6 +37,7 @@ npm test          # all three suites
 | `test:zoom` | Zooming keeps whatever is under the pointer under the pointer, actually scales the page, and the preset menu applies. |
 | `test:unsaved` | Closing with unsaved ink asks first; closing a saved document does not. |
 | `test:text` | Text spans sit over the glyphs they describe (measured in PDF points), selection returns the right words, search highlights land on their match, and contents links navigate. |
+| `test:sidebar` | Thumbnails keep their height in an overflowing list, history records and travels, and results are grouped by page. |
 
 Each one checks rendered output rather than internal state: they rasterise real
 pages or compare real frames. Every coordinate bug this project has had would
@@ -125,10 +126,17 @@ the page into real text: drag to select, `Ctrl+C` to copy. It and the **Pan**
 tool are the reading modes, where links become clickable — a contents entry
 jumps to its page, an external URL opens in your browser.
 
-**Find** (`Ctrl+F`) searches the whole document. Matches are counted as the scan
-runs rather than after it, so a long document is usable immediately; `Enter` and
-`Shift+Enter` step through them, and highlights are drawn from the real glyph
-rectangles so they sit exactly on the words they matched.
+**Find** (`Ctrl+F`) searches the whole document and opens the sidebar on its
+results, grouped by page with the matched phrase in context. Matches are counted
+as the scan runs rather than after it, so a long document is usable immediately;
+`Enter` and `Shift+Enter` step through them, and highlights are drawn from the
+real glyph rectangles so they sit exactly on the words they matched.
+
+The sidebar has three tabs: **Pages** for thumbnails and page operations,
+**Results** for the current search, and **History** — every change you have made,
+newest first, with the page and time. Clicking an entry travels to that state,
+which is undo and redo without counting keystrokes; undone entries stay listed
+so going forward again is one click.
 
 The page indicator in the toolbar shows where you are and takes a page number —
 type one and press `Enter` to jump.
@@ -158,6 +166,11 @@ an opaque bar.
 strokes, shapes, text boxes and notes on contact; the lasso selects a group and
 `Delete` removes it; and text boxes and notes carry their own × button. All of
 it is a single undo step.
+
+Everything else — open, save, export, page operations, zoom presets, full
+screen — lives behind the **⋯** button in the toolbar. There is no menu bar:
+the window keeps its native frame, but the application's own commands live in
+the application, next to what they act on.
 
 ## Keyboard
 
@@ -247,6 +260,13 @@ forced a synchronous layout each time, which is what made zooming stutter;
 wheel and pinch events are also coalesced into one update per animation frame.
 Zoom anchors on the point under the pointer, so the document grows around what
 you are looking at instead of sliding away from it.
+
+### Text is rasterised above the display's density
+
+On a 1× display, one canvas pixel per CSS pixel leaves glyph edges no room to
+antialias and text reads as soft. Pages are rendered at 1.5× and downsampled by
+the browser, within a pixel budget that pulls the factor back at deep zoom
+rather than asking for a canvas the GPU will refuse.
 
 ### Large documents open immediately
 
