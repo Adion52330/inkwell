@@ -60,8 +60,6 @@ const viewerEl = $('viewer');
 const bodyEl = $('body');
 const welcomeEl = $('welcome');
 const toastEl = $('toast');
-const titleEl = $('doc-title');
-const subtitleEl = $('doc-subtitle');
 const zoomEl = $('zoom-readout');
 const dropVeil = $('drop-veil');
 
@@ -457,9 +455,7 @@ async function openDocument(filePath) {
     welcomeEl.hidden = true;
     pageTotalEl.textContent = String(store.pageCount);
     showPageNumber(0);
-    titleEl.firstChild.textContent = file.name;
-    updateSubtitle();
-    document.title = `${file.name} — Inkwell`;
+    updateWindowTitle();
     if (sidebar.open) sidebar.refresh();
     updateHistoryButtons();
   } catch (err) {
@@ -468,17 +464,17 @@ async function openDocument(filePath) {
   }
 }
 
-function updateSubtitle() {
+/**
+ * The window's own title bar is the document's name, and carries the unsaved
+ * marker — the usual convention, and the reason none of this needs repeating
+ * inside the app's toolbar.
+ */
+function updateWindowTitle() {
   if (!store.doc) {
-    subtitleEl.textContent = 'No document open';
+    document.title = 'Inkwell';
     return;
   }
-  const count = store.pageCount;
-  const strokes = store.doc.pages.reduce((sum, page) => sum + page.strokes.length, 0);
-  const saved = store.isDirty ? 'unsaved changes' : 'saved';
-  subtitleEl.textContent = `${count} page${count === 1 ? '' : 's'} · ${strokes} stroke${
-    strokes === 1 ? '' : 's'
-  } · ${saved}`;
+  document.title = `${store.isDirty ? '• ' : ''}${store.doc.name} — Inkwell`;
 }
 
 /**
@@ -514,9 +510,7 @@ async function closeDocument() {
   welcomeEl.hidden = false;
   pageTotalEl.textContent = '–';
   showPageNumber(0);
-  titleEl.firstChild.textContent = 'Inkwell';
-  document.title = 'Inkwell';
-  updateSubtitle();
+  updateWindowTitle();
   renderRecents();
   return true;
 }
@@ -540,7 +534,7 @@ store.addEventListener('change', (event) => {
     }
   }
   updateHistoryButtons();
-  updateSubtitle();
+  updateWindowTitle();
   if (sidebar.open && sidebar.tab === 'history') sidebar.renderHistory();
   if (store.doc) pageTotalEl.textContent = String(store.pageCount);
   scheduleSave();
@@ -574,7 +568,7 @@ async function flushSave() {
     store.savedAt = revisionAtSave;
     api.setDirty(false);
   }
-  updateSubtitle();
+  updateWindowTitle();
   return true;
 }
 

@@ -36,13 +36,14 @@ async function phase(report, { name, dirty }) {
       // document is genuinely unsaved at the moment of the attempt.
       await drag(send, { x: 500, y: 545 }, { x: 820, y: 560 }, 16);
       await sleep(120);
-      const state = await evaluate(send, `document.getElementById('doc-subtitle').textContent`);
-      report.check(`${name}: document reports unsaved changes`, /unsaved/.test(state), state);
+      // The window title carries the unsaved marker.
+      const state = await evaluate(send, `document.title`);
+      report.check(`${name}: window title marks it unsaved`, state.startsWith('•'), state);
     } else {
       // Nothing drawn, so there is nothing outstanding to save.
       await sleep(400);
-      const state = await evaluate(send, `document.getElementById('doc-subtitle').textContent`);
-      report.check(`${name}: document reports saved`, /saved/.test(state), state);
+      const state = await evaluate(send, `document.title`);
+      report.check(`${name}: window title has no unsaved marker`, !state.startsWith('•'), state);
     }
 
     // Fire and forget: if a dialog opens, this never resolves.

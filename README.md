@@ -141,6 +141,11 @@ so going forward again is one click.
 The page indicator in the toolbar shows where you are and takes a page number —
 type one and press `Enter` to jump.
 
+The toolbar carries controls and nothing else: the document's name and its
+unsaved marker are in the window's own title bar, the page count is in the page
+indicator, and what you have changed is in the History tab. Nothing is stated
+twice.
+
 ## Tools
 
 - **Pen** — pressure-tapered ink, twelve colours, 1–16 pt

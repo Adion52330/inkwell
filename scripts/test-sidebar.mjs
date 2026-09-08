@@ -65,22 +65,49 @@ async function main() {
     );
 
     // --- 3. travelling back through history --------------------------------
-    const strokesNow = () =>
-      evaluate(send, `document.getElementById('doc-subtitle').textContent`);
+    // Asserted through the panel itself and the ink on the page, rather than a
+    // status line: the point is that the document really changed.
+    const state = () =>
+      evaluate(
+        send,
+        `(() => {
+          const stroke = [...document.querySelectorAll('.history-row')]
+            .find((r) => r.textContent.includes('Pen stroke'));
+          const page = document.querySelector('.page[data-index="0"] .ink-layer');
+          const ctx = page.getContext('2d', { willReadFrequently: true });
+          const { data } = ctx.getImageData(0, 0, page.width, page.height);
+          let inked = 0;
+          for (let i = 3; i < data.length; i += 4) if (data[i] > 40) inked += 1;
+          return JSON.stringify({
+            atOrigin: document.querySelector('.history-row.base')?.classList.contains('current'),
+            strokeUndone: stroke?.classList.contains('undone') ?? null,
+            strokeCurrent: stroke?.classList.contains('current') ?? null,
+            inked,
+          });
+        })()`
+      );
 
     await evaluate(send, `document.querySelector('.history-row.base').click()`);
-    await sleep(700);
-    const atOrigin = await strokesNow();
-    report.check('clicking “Original document” undoes everything', /0 strokes/.test(atOrigin), atOrigin);
+    await sleep(800);
+    const origin = JSON.parse(await state());
+    report.check(
+      'clicking “Original document” undoes everything',
+      origin.atOrigin && origin.strokeUndone && origin.inked === 0,
+      `origin marked: ${origin.atOrigin}, stroke undone: ${origin.strokeUndone}, ${origin.inked} inked px`
+    );
 
     // The undone entry stays listed, so it can be travelled back to.
     await evaluate(
       send,
       `[...document.querySelectorAll('.history-row')].find((r) => r.textContent.includes('Pen stroke')).click()`
     );
-    await sleep(700);
-    const restored = await strokesNow();
-    report.check('travelling forward restores it', /1 stroke/.test(restored), restored);
+    await sleep(800);
+    const back = JSON.parse(await state());
+    report.check(
+      'travelling forward restores it',
+      back.strokeCurrent && !back.strokeUndone && back.inked > 0,
+      `stroke current: ${back.strokeCurrent}, ${back.inked} inked px`
+    );
 
     // --- 4. search results are listed by page ------------------------------
     const results = await evaluate(
