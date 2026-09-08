@@ -106,9 +106,12 @@ export function createObjectElement(object, { onEdit, onSelect, onDragEnd, onDel
   // Dragging: grab anywhere that is not the editable text itself.
   let drag = null;
   el.addEventListener('pointerdown', (event) => {
+    // Stop the event reaching the ink engine's delegated listener even when the
+    // click lands in the editable text — otherwise clicking into a text box
+    // with the pen selected would draw a stroke across it.
+    event.stopPropagation();
     if (event.target.isContentEditable) return;
     if (event.button !== 0) return;
-    event.stopPropagation();
     onSelect();
     drag = { startX: event.clientX, startY: event.clientY, moved: false };
     el.setPointerCapture(event.pointerId);

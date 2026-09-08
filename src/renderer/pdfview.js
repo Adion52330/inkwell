@@ -704,11 +704,19 @@ export class PdfView extends EventTarget {
 
   applyFit(mode) {
     if (!this.store.doc || !this.pageEls.length) return;
-    const index = this.currentPage;
-    const { width, height } = this.store.pageSize(index);
-    const rotated = (this.store.page(index)?.rotation || 0) % 180 !== 0;
-    const pageWidth = rotated ? height : width;
-    const pageHeight = rotated ? width : height;
+    // Fit against the *largest* page in the document, not the current one.
+    // The page strip is as wide as its widest member, so fitting a portrait
+    // page in a document that also contains a landscape one would leave every
+    // portrait page pushed off-centre behind a horizontal scrollbar.
+    let pageWidth = 0;
+    let pageHeight = 0;
+    for (let index = 0; index < this.store.pageCount; index += 1) {
+      const { width, height } = this.store.pageSize(index);
+      const rotated = (this.store.page(index)?.rotation || 0) % 180 !== 0;
+      pageWidth = Math.max(pageWidth, rotated ? height : width);
+      pageHeight = Math.max(pageHeight, rotated ? width : height);
+    }
+    if (!pageWidth || !pageHeight) return;
     // 48px of breathing room either side; a document flush to the window edge
     // reads as cramped.
     const availableWidth = this.container.clientWidth - 48;

@@ -108,6 +108,14 @@ zoomEl.addEventListener('click', () => view.setScale(1));
 function toggleSidebar() {
   const open = thumbs.toggle();
   $('btn-sidebar').classList.toggle('on', open);
+  // The sidebar takes width away from the viewer, so a fitted document has to
+  // be refitted or it starts overflowing horizontally. Wait for the slide
+  // animation to finish, otherwise the fit is computed against a width the
+  // sidebar is still in the middle of vacating.
+  if (view.fitMode) {
+    const mode = view.fitMode;
+    setTimeout(() => view.applyFit(mode), 280);
+  }
 }
 
 // --- toast ------------------------------------------------------------------

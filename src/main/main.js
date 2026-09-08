@@ -97,9 +97,6 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
-      // Chromium coalesces pointer events to the display refresh unless asked
-      // otherwise; the ink engine wants every sample a 240 Hz pen emits.
-      enableBlinkFeatures: 'PointerEventsHighResolution',
     },
   });
 
