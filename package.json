@@ -1,0 +1,27 @@
+{
+  "name": "inkwell",
+  "version": "0.1.0",
+  "description": "A PDF reader and annotator with a pressure-sensitive ink engine",
+  "main": "src/main/main.js",
+  "author": "Adion52330",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "build": "node scripts/build.js",
+    "watch": "node scripts/build.js --watch",
+    "start": "npm run build && electron .",
+    "dev": "npm run build && electron . --dev",
+    "sample": "node scripts/make-sample.js",
+    "dist": "npm run build && electron-builder --linux AppImage"
+  },
+  "dependencies": {
+    "pdf-lib": "^1.17.1",
+    "pdfjs-dist": "^6.3.289",
+    "perfect-freehand": "^1.2.3"
+  },
+  "devDependencies": {
+    "electron": "^44.2.0",
+    "electron-builder": "^26.15.3",
+    "esbuild": "^0.28.2"
+  }
+}
