@@ -38,7 +38,7 @@ npm test          # all three suites
 | `test:unsaved` | Closing with unsaved ink asks first; closing a saved document does not. |
 | `test:text` | Text spans sit over the glyphs they describe (measured in PDF points), selection returns the right words, search highlights land on their match, and contents links navigate. |
 | `test:sidebar` | Thumbnails keep their height in an overflowing list, history records and travels, and results are grouped by page. |
-| `test:open` | A second document can be opened while one is already open, in both directions. |
+| `test:open` | A second document can be opened while one is already open, in both directions, and a reopened document returns to the page it was left on. |
 
 Each one checks rendered output rather than internal state: they rasterise real
 pages or compare real frames. Every coordinate bug this project has had would
@@ -140,7 +140,8 @@ which is undo and redo without counting keystrokes; undone entries stay listed
 so going forward again is one click.
 
 The page indicator in the toolbar shows where you are and takes a page number -
-type one and press `Enter` to jump.
+type one and press `Enter` to jump. Closing a document remembers the page you
+were on, and reopening it returns you there.
 
 The toolbar carries controls and nothing else: the document's name and its
 unsaved marker are in the window's own title bar, the page count is in the page
@@ -236,6 +237,13 @@ becomes a real PDF `/Text` annotation rather than a coloured square burned into
 the page:
 
 ![The same page after export](docs/exported-page.png)
+
+### Reading position is app state, not document state
+
+Where you are in a document is remembered alongside the recent-files list in the
+application's own directory, not in the sidecar. A PDF you only read should not
+grow a file beside it, and the sidecar is for ink - things you made, which
+belong with the document and travel with it.
 
 ### Saving cannot corrupt your notes
 

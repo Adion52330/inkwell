@@ -282,6 +282,27 @@ search.addEventListener('status', (event) => {
   if (sidebar.open && sidebar.tab === 'results') sidebar.renderResults(event.detail);
 });
 
+// --- reading position -------------------------------------------------------
+
+let rememberTimer = 0;
+
+/**
+ * Persist the page being read, so reopening a document returns to it.
+ * Debounced: scrolling through a book would otherwise write the file on every
+ * page boundary it crosses.
+ */
+function scheduleRememberPage() {
+  if (!currentPath) return;
+  clearTimeout(rememberTimer);
+  rememberTimer = setTimeout(flushRememberPage, 900);
+}
+
+function flushRememberPage() {
+  clearTimeout(rememberTimer);
+  if (!currentPath || !store.doc) return;
+  api.rememberPage(currentPath, view.currentPage);
+}
+
 // --- page indicator ---------------------------------------------------------
 
 const pageInput = $('page-input');
@@ -427,6 +448,8 @@ async function openViaDialog() {
 async function openDocument(filePath) {
   if (store.doc && store.doc.path !== filePath) {
     if ((await confirmUnsaved()) === 'cancel') return;
+    // Record the outgoing document's position before it is replaced.
+    flushRememberPage();
   }
   try {
     const file = await api.readPdf(filePath);
@@ -448,7 +471,10 @@ async function openDocument(filePath) {
 
     view.layout();
     view.applyFit('width');
-    view.scrollToPage(0, 'auto');
+    // Back to where this document was last left off, clamped in case the file
+    // has since lost pages.
+    const startPage = Math.min(Math.max(file.lastPage ?? 0, 0), store.pageCount - 1);
+    view.scrollToPage(startPage, 'auto');
     ink.clearSelection();
 
     search.reset();
@@ -459,7 +485,7 @@ async function openDocument(filePath) {
     renderRecents();
     welcomeEl.hidden = true;
     pageTotalEl.textContent = String(store.pageCount);
-    showPageNumber(0);
+    showPageNumber(startPage);
     updateWindowTitle();
     if (sidebar.open) sidebar.refresh();
     updateHistoryButtons();
@@ -507,6 +533,8 @@ async function confirmUnsaved() {
 
 async function closeDocument() {
   if ((await confirmUnsaved()) === 'cancel') return false;
+  // The debounce may not have fired yet, and the path is about to be cleared.
+  flushRememberPage();
   await view.unload();
   store.close();
   originalBytes = null;
@@ -719,6 +747,7 @@ async function command(name, payload) {
         api.setDirty(store.isDirty);
         break;
       }
+      flushRememberPage();
       closing = true;
       api.closeNow();
       break;
@@ -944,6 +973,7 @@ view.addEventListener('zoom', () => {
 view.addEventListener('page', (event) => {
   sidebar.setCurrent(event.detail.page);
   showPageNumber(event.detail.page);
+  scheduleRememberPage();
 });
 
 sidebar.addEventListener('goto', (event) => view.scrollToPage(event.detail.page));
@@ -1021,6 +1051,7 @@ async function renderRecents() {
 // --- boot -------------------------------------------------------------------
 
 window.addEventListener('beforeunload', () => {
+  flushRememberPage();
   if (!closing && store.isDirty) flushSave();
 });
 

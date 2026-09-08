@@ -70,6 +70,7 @@ async function main() {
   clearSidecar();
   const report = createReporter();
   const second = await makeSecondPdf(path.join(process.cwd(), 'dist/second.pdf'));
+  let leftOn = null;
   // One profile across both launches, so the first document is in the recent
   // list by the time the second run needs to pick it.
   const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'inkwell-profile-'));
@@ -122,13 +123,46 @@ async function main() {
 
     const problems = consoleLines.filter((line) => /error|exception/i.test(line));
     report.check('no renderer errors', problems.length === 0, problems.slice(0, 2).join(' | '));
+
+    // --- the reading position is remembered -------------------------------
+    // Jump to a page the way a reader would, then let the debounced write land
+    // before the window goes away.
+    await evaluate(
+      send,
+      `(() => {
+        const input = document.getElementById('page-input');
+        input.focus();
+        input.value = '3';
+        input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      })()`
+    );
+    await sleep(2000);
+    // Whichever page this actually settles on is the one that must come back.
+    // Asserting the exact number would be asserting how far a jump scrolls in a
+    // document whose pages are different sizes, which is not what this covers.
+    leftOn = await evaluate(send, `document.getElementById('page-input').value`);
+    report.check('moved off the first page', leftOn !== '1', `left on page ${leftOn}`);
   } finally {
     await close();
+    clearSidecar();
+  }
+
+  // Reopen the same document in the same profile.
+  const resumed = await launch({ port: PORT, pdf: samplePdf(), profile });
+  try {
+    const landed = await evaluate(resumed.send, `document.getElementById('page-input').value`);
+    report.check(
+      'reopening returns to the page it was left on',
+      landed === leftOn,
+      `left on ${leftOn}, opened at ${landed}`
+    );
+  } finally {
+    await resumed.close();
     clearSidecar();
     fs.rmSync(second, { force: true });
   }
 
-  report.finish('documents can be opened one after another, in both directions');
+  report.finish('documents open one after another, and reopen where they were left');
 }
 
 main().catch((err) => {

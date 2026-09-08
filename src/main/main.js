@@ -35,18 +35,32 @@ async function readRecents() {
   }
 }
 
-async function pushRecent(filePath) {
-  const list = await readRecents();
-  const next = [
-    { path: filePath, name: path.basename(filePath), openedAt: Date.now() },
-    ...list.filter((entry) => entry.path !== filePath),
-  ].slice(0, MAX_RECENTS);
+async function writeRecents(list) {
   try {
     await fsp.mkdir(path.dirname(RECENTS_FILE), { recursive: true });
-    await fsp.writeFile(RECENTS_FILE, JSON.stringify(next, null, 2));
+    await fsp.writeFile(RECENTS_FILE, JSON.stringify(list, null, 2));
+    return true;
   } catch {
-    /* recents are a convenience; never block opening a document over them */
+    /* recents are a convenience; never block over them */
+    return false;
   }
+}
+
+async function pushRecent(filePath) {
+  const list = await readRecents();
+  // Carry the reading position forward: rebuilding the entry from scratch here
+  // would silently forget which page the document was left on.
+  const previous = list.find((entry) => entry.path === filePath);
+  const next = [
+    {
+      path: filePath,
+      name: path.basename(filePath),
+      openedAt: Date.now(),
+      page: previous?.page ?? 0,
+    },
+    ...list.filter((entry) => entry.path !== filePath),
+  ].slice(0, MAX_RECENTS);
+  await writeRecents(next);
   app.addRecentDocument(filePath);
   return next;
 }
@@ -167,13 +181,29 @@ ipcMain.handle('dialog:appendPdf', async () => {
 ipcMain.handle('file:readPdf', async (_event, filePath) => {
   const buffer = await fsp.readFile(filePath);
   const hash = crypto.createHash('sha256').update(buffer).digest('hex').slice(0, 32);
+  // Read the remembered position before pushRecent rewrites the entry.
+  const previous = (await readRecents()).find((entry) => entry.path === filePath);
   await pushRecent(filePath);
   return {
     path: filePath,
     name: path.basename(filePath),
     hash,
+    lastPage: Number.isInteger(previous?.page) ? previous.page : 0,
     bytes: new Uint8Array(buffer),
   };
+});
+
+// Where the reader is in a document. This is view state, not part of the
+// document, so it lives with the application rather than in the sidecar beside
+// the PDF - a file that is only read and never annotated should not cause a
+// sidecar to appear next to it.
+ipcMain.handle('view:remember', async (_event, filePath, page) => {
+  if (!filePath || !Number.isInteger(page)) return false;
+  const list = await readRecents();
+  const entry = list.find((item) => item.path === filePath);
+  if (!entry || entry.page === page) return false;
+  entry.page = page;
+  return writeRecents(list);
 });
 
 ipcMain.handle('sidecar:read', async (_event, pdfPath) => {

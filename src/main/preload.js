@@ -21,6 +21,9 @@ contextBridge.exposeInMainWorld('inkwell', {
   // --- links ---------------------------------------------------------------
   openExternal: (url) => ipcRenderer.invoke('link:open', url),
 
+  // --- reading position ----------------------------------------------------
+  rememberPage: (filePath, page) => ipcRenderer.invoke('view:remember', filePath, page),
+
   // --- recents -------------------------------------------------------------
   getRecents: () => ipcRenderer.invoke('recents:get'),
   clearRecents: () => ipcRenderer.invoke('recents:clear'),
