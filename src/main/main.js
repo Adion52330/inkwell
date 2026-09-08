@@ -172,22 +172,29 @@ function buildMenu() {
           { label: 'Undo', accelerator: 'CmdOrCtrl+Z', click: () => send('undo') },
           { label: 'Redo', accelerator: 'CmdOrCtrl+Shift+Z', click: () => send('redo') },
           { type: 'separator' },
-          { label: 'Delete Selection', accelerator: 'Delete', click: () => send('delete') },
+          { label: 'Delete Selection', click: () => send('delete') },
           { label: 'Select All Ink', accelerator: 'CmdOrCtrl+A', click: () => send('select-all') },
         ],
       },
       {
+        // No accelerators here on purpose. Electron menu accelerators are
+        // global, so a bare "1" or "H" would be swallowed before it could reach
+        // a text box the user is typing into. The renderer binds these keys
+        // itself, where it can tell whether an editor has focus.
         label: 'Tools',
         submenu: [
-          { label: 'Pen', accelerator: '1', click: () => send('tool', 'pen') },
-          { label: 'Highlighter', accelerator: '2', click: () => send('tool', 'highlighter') },
-          { label: 'Eraser', accelerator: '3', click: () => send('tool', 'eraser') },
-          { label: 'Lasso', accelerator: '4', click: () => send('tool', 'lasso') },
-          { label: 'Text Box', accelerator: '5', click: () => send('tool', 'text') },
-          { label: 'Sticky Note', accelerator: '6', click: () => send('tool', 'note') },
-          { label: 'Shapes', accelerator: '7', click: () => send('tool', 'shape') },
+          { label: 'Pen', click: () => send('tool', 'pen') },
+          { label: 'Highlighter', click: () => send('tool', 'highlighter') },
+          { label: 'Eraser', click: () => send('tool', 'eraser') },
+          { label: 'Lasso', click: () => send('tool', 'lasso') },
+          { label: 'Text Box', click: () => send('tool', 'text') },
+          { label: 'Sticky Note', click: () => send('tool', 'note') },
+          { label: 'Shapes', click: () => send('tool', 'shape') },
           { type: 'separator' },
-          { label: 'Hand / Pan', accelerator: 'H', click: () => send('tool', 'hand') },
+          { label: 'Hand / Pan', click: () => send('tool', 'hand') },
+          { type: 'separator' },
+          { label: 'Insert Blank Page After Current', click: () => send('insert-page') },
+          { label: 'Append PDF…', click: () => send('append-pdf') },
         ],
       },
       {

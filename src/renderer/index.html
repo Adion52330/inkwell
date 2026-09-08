@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; worker-src 'self' blob:; connect-src 'self' data: blob:"
+    />
+    <title>Inkwell</title>
+    <link rel="stylesheet" href="styles/app.css" />
+  </head>
+  <body>
+    <div class="shell">
+      <header class="titlebar">
+        <div class="window-controls">
+          <button class="wc-close" id="wc-close" aria-label="Close window"></button>
+          <button class="wc-min" id="wc-min" aria-label="Minimise window"></button>
+          <button class="wc-max" id="wc-max" aria-label="Maximise window"></button>
+        </div>
+
+        <button class="icon-btn" id="btn-sidebar" title="Pages  ·  Ctrl+B" aria-label="Toggle pages sidebar"></button>
+        <button class="icon-btn" id="btn-open" title="Open PDF  ·  Ctrl+O" aria-label="Open PDF"></button>
+
+        <div class="title" id="doc-title">
+          Inkwell
+          <span class="subtitle" id="doc-subtitle">No document open</span>
+        </div>
+
+        <button class="icon-btn" id="btn-undo" title="Undo  ·  Ctrl+Z" aria-label="Undo" disabled></button>
+        <button class="icon-btn" id="btn-redo" title="Redo  ·  Ctrl+Shift+Z" aria-label="Redo" disabled></button>
+        <button class="icon-btn" id="btn-zoom-out" title="Zoom out  ·  Ctrl+−" aria-label="Zoom out"></button>
+        <button class="zoom-readout" id="zoom-readout" title="Actual size  ·  Ctrl+0">100%</button>
+        <button class="icon-btn" id="btn-zoom-in" title="Zoom in  ·  Ctrl++" aria-label="Zoom in"></button>
+        <button class="icon-btn" id="btn-fit-width" title="Fit width  ·  Ctrl+1" aria-label="Fit width"></button>
+        <button class="icon-btn" id="btn-export" title="Export annotated PDF  ·  Ctrl+E" aria-label="Export annotated PDF"></button>
+      </header>
+
+      <div class="body" id="body">
+        <div class="viewer" id="viewer"></div>
+
+        <section class="welcome" id="welcome">
+          <div class="welcome-card">
+            <div class="welcome-mark" id="welcome-mark"></div>
+            <h1>Inkwell</h1>
+            <p>Open a PDF and write on it. Your ink is saved beside the file — the PDF itself is never changed.</p>
+            <button class="btn-primary" id="btn-open-big">Open PDF…</button>
+            <div class="recents" id="recents" hidden></div>
+          </div>
+        </section>
+
+        <div class="drop-veil" id="drop-veil">Drop a PDF to open it</div>
+      </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script type="module" src="renderer.js"></script>
+  </body>
+</html>

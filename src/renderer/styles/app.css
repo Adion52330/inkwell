@@ -1,0 +1,1078 @@
+@import './tokens.css';
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+
+body {
+  font-family: var(--font);
+  font-size: 13px;
+  color: var(--label);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+  /* Nothing in the chrome should be text-selectable — this is an app, not a
+   * document. The PDF's own text layer opts back in. */
+  user-select: none;
+  cursor: default;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  border: none;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+/* ==========================================================================
+   Title bar — the window is frameless, so this is the drag handle
+   ========================================================================== */
+
+.titlebar {
+  height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  background: var(--toolbar-bg);
+  backdrop-filter: var(--toolbar-blur);
+  -webkit-backdrop-filter: var(--toolbar-blur);
+  border-bottom: 0.5px solid var(--separator);
+  -webkit-app-region: drag;
+  position: relative;
+  z-index: 40;
+}
+
+.titlebar button,
+.titlebar .segmented,
+.titlebar .zoom-readout {
+  -webkit-app-region: no-drag;
+}
+
+.titlebar .title {
+  flex: 1;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 590;
+  letter-spacing: -0.01em;
+  color: var(--label);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 0 8px;
+}
+
+.titlebar .title .subtitle {
+  display: block;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--label-secondary);
+}
+
+.icon-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-sm);
+  display: grid;
+  place-items: center;
+  color: var(--label-secondary);
+  transition:
+    background var(--fast) var(--spring),
+    color var(--fast) var(--spring),
+    transform var(--fast) var(--spring);
+}
+
+.icon-btn:hover {
+  background: color-mix(in srgb, var(--label) 8%, transparent);
+  color: var(--label);
+}
+
+.icon-btn:active {
+  transform: scale(0.92);
+}
+
+.icon-btn[disabled] {
+  opacity: 0.3;
+  pointer-events: none;
+}
+
+.icon-btn.on {
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--accent);
+}
+
+.icon-btn svg {
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.window-controls {
+  display: flex;
+  gap: 6px;
+  padding-left: 4px;
+}
+
+.window-controls button {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  transition: filter var(--fast) var(--spring);
+}
+
+.window-controls button:hover {
+  filter: brightness(0.88);
+}
+
+.window-controls .wc-close {
+  background: #ff5f57;
+}
+.window-controls .wc-min {
+  background: #febc2e;
+}
+.window-controls .wc-max {
+  background: #28c840;
+}
+
+.zoom-readout {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--label-secondary);
+  min-width: 42px;
+  text-align: center;
+  border-radius: var(--radius-sm);
+  padding: 4px 6px;
+}
+
+.zoom-readout:hover {
+  background: color-mix(in srgb, var(--label) 8%, transparent);
+}
+
+/* ==========================================================================
+   Layout
+   ========================================================================== */
+
+.shell {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+.body {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+  position: relative;
+}
+
+/* ==========================================================================
+   Thumbnail sidebar
+   ========================================================================== */
+
+.sidebar {
+  width: 0;
+  flex: 0 0 auto;
+  background: var(--bg-elevated);
+  border-right: 0.5px solid var(--separator);
+  overflow: hidden;
+  transition: width var(--medium) var(--spring);
+}
+
+.sidebar.open {
+  width: 188px;
+}
+
+.sidebar-inner {
+  width: 188px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar-head {
+  padding: 12px 14px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--label-tertiary);
+}
+
+.thumbs {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px 12px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  scrollbar-width: thin;
+}
+
+.thumb {
+  position: relative;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: #fff;
+  box-shadow: 0 0 0 0.5px var(--separator);
+  transition:
+    box-shadow var(--fast) var(--spring),
+    transform var(--fast) var(--spring);
+  cursor: pointer;
+}
+
+.thumb canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.thumb:hover {
+  transform: translateY(-1px);
+}
+
+.thumb.current {
+  box-shadow: 0 0 0 2.5px var(--accent);
+}
+
+.thumb.dragging {
+  opacity: 0.4;
+}
+
+.thumb.drop-before::before,
+.thumb.drop-after::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--accent);
+  border-radius: 2px;
+}
+
+.thumb.drop-before::before {
+  top: -6px;
+}
+.thumb.drop-after::after {
+  bottom: -6px;
+}
+
+.thumb-label {
+  position: absolute;
+  bottom: 4px;
+  right: 5px;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  padding: 1px 6px;
+  border-radius: var(--radius-pill);
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+}
+
+.thumb-actions {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  gap: 4px;
+  padding: 5px;
+  opacity: 0;
+  transition: opacity var(--fast) var(--spring);
+}
+
+.thumb:hover .thumb-actions {
+  opacity: 1;
+}
+
+.thumb-actions button {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  backdrop-filter: blur(8px);
+}
+
+.thumb-actions button:hover {
+  background: rgba(0, 0, 0, 0.82);
+}
+
+.thumb-actions svg {
+  width: 13px;
+  height: 13px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* ==========================================================================
+   Viewer
+   ========================================================================== */
+
+.viewer {
+  flex: 1;
+  overflow: auto;
+  position: relative;
+  background: var(--bg);
+  overscroll-behavior: contain;
+  scroll-behavior: auto;
+  /* Room for the floating toolbar so the last page is never trapped under it. */
+  padding-bottom: 108px;
+  touch-action: pan-x pan-y pinch-zoom;
+}
+
+.viewer.tool-pen,
+.viewer.tool-highlighter {
+  cursor: crosshair;
+}
+
+.viewer.tool-eraser {
+  cursor: cell;
+}
+
+.viewer.tool-lasso {
+  cursor: crosshair;
+}
+
+.viewer.tool-text,
+.viewer.tool-note {
+  cursor: copy;
+}
+
+.viewer.tool-hand {
+  cursor: grab;
+}
+
+.viewer.panning {
+  cursor: grabbing;
+}
+
+.pages {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  padding: 24px;
+  min-height: 100%;
+  width: max-content;
+  min-width: 100%;
+}
+
+.page {
+  position: relative;
+  background: #fff;
+  border-radius: 3px;
+  box-shadow: var(--page-shadow);
+  flex: 0 0 auto;
+  contain: strict;
+  /* Chromium will not composite a huge canvas smoothly without this hint. */
+  will-change: transform;
+}
+
+.page .layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.page .pdf-layer {
+  border-radius: 3px;
+}
+
+.page .ink-layer,
+.page .wet-layer {
+  pointer-events: none;
+}
+
+.page .obj-layer {
+  pointer-events: none;
+}
+
+.page .obj-layer > * {
+  pointer-events: auto;
+}
+
+.page:not(.ready) {
+  background: linear-gradient(
+    100deg,
+    var(--surface-sunken) 30%,
+    color-mix(in srgb, var(--surface-sunken) 60%, #fff) 50%,
+    var(--surface-sunken) 70%
+  );
+  background-size: 220% 100%;
+  animation: shimmer 1.4s linear infinite;
+}
+
+@keyframes shimmer {
+  to {
+    background-position: -220% 0;
+  }
+}
+
+.page-number {
+  position: absolute;
+  bottom: -19px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  color: var(--label-tertiary);
+  pointer-events: none;
+}
+
+.pages.zooming .page .pdf-layer {
+  /* While the debounce runs, the browser scales the old bitmap. Smoothing it
+   * hides the softness better than nearest-neighbour would. */
+  image-rendering: auto;
+}
+
+/* ==========================================================================
+   Placed objects — text boxes and sticky notes
+   ========================================================================== */
+
+.obj {
+  position: absolute;
+  transform: translate(var(--drag-x, 0), var(--drag-y, 0));
+  transition: box-shadow var(--fast) var(--spring);
+}
+
+.obj.dragging {
+  z-index: 5;
+  cursor: grabbing;
+}
+
+.obj-text {
+  border-radius: var(--radius-sm);
+  padding: 2px 4px;
+  min-height: 1em;
+  line-height: 1.32;
+  cursor: text;
+}
+
+.obj-text:hover,
+.obj-text.selected {
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent);
+}
+
+.obj-text.editing {
+  box-shadow: 0 0 0 2px var(--accent);
+  background: color-mix(in srgb, #fff 88%, transparent);
+}
+
+.obj-text-body {
+  outline: none;
+  white-space: pre-wrap;
+  word-break: break-word;
+  user-select: text;
+}
+
+.obj-text-body:empty::before {
+  content: attr(data-placeholder);
+  color: var(--label-tertiary);
+}
+
+.obj-note {
+  width: 22px;
+  height: 22px;
+}
+
+.obj-note-dot {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--note-color, var(--yellow));
+  box-shadow:
+    0 0 0 2px rgba(255, 255, 255, 0.9),
+    0 2px 6px rgba(0, 0, 0, 0.28);
+  transition: transform var(--fast) var(--spring-out);
+}
+
+.obj-note-dot:hover {
+  transform: scale(1.14);
+}
+
+.obj-note-bubble {
+  position: absolute;
+  top: 28px;
+  left: 0;
+  width: 216px;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  background: var(--surface-solid);
+  color: var(--label);
+  box-shadow: var(--toolbar-shadow);
+  transform-origin: 11px -14px;
+  transition:
+    opacity var(--fast) var(--spring),
+    transform var(--medium) var(--spring-out);
+  font-size: 12px;
+}
+
+.obj-note.collapsed .obj-note-bubble {
+  opacity: 0;
+  transform: scale(0.8);
+  pointer-events: none;
+}
+
+.obj-note-body {
+  outline: none;
+  min-height: 34px;
+  white-space: pre-wrap;
+  user-select: text;
+  line-height: 1.4;
+}
+
+.obj-note-body:empty::before {
+  content: attr(data-placeholder);
+  color: var(--label-tertiary);
+}
+
+.obj-note-delete {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  color: var(--label-tertiary);
+  font-size: 15px;
+  line-height: 1;
+  display: grid;
+  place-items: center;
+}
+
+.obj-note-delete:hover {
+  background: color-mix(in srgb, var(--red) 16%, transparent);
+  color: var(--red);
+}
+
+/* ==========================================================================
+   The floating tool palette
+   ========================================================================== */
+
+.toolbar {
+  position: absolute;
+  bottom: 22px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--toolbar-bg);
+  backdrop-filter: var(--toolbar-blur);
+  -webkit-backdrop-filter: var(--toolbar-blur);
+  border: 0.5px solid var(--toolbar-border);
+  box-shadow: var(--toolbar-shadow);
+  z-index: 30;
+  transition:
+    opacity var(--medium) var(--spring),
+    transform var(--medium) var(--spring);
+}
+
+.toolbar.hidden {
+  opacity: 0;
+  transform: translateX(-50%) translateY(20px) scale(0.96);
+  pointer-events: none;
+}
+
+.tool {
+  position: relative;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: var(--label-secondary);
+  transition:
+    transform var(--medium) var(--spring-out),
+    background var(--fast) var(--spring),
+    color var(--fast) var(--spring);
+}
+
+.tool:hover {
+  color: var(--label);
+  background: color-mix(in srgb, var(--label) 7%, transparent);
+}
+
+/* The selected tool lifts out of the palette rather than just changing colour —
+ * the single strongest cue that this is a physical set of pens. */
+.tool.active {
+  color: #fff;
+  background: var(--accent);
+  transform: translateY(-5px) scale(1.06);
+  box-shadow: 0 5px 14px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+.tool.active::after {
+  content: '';
+  position: absolute;
+  bottom: -7px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.tool svg {
+  width: 21px;
+  height: 21px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* A dot of the current colour on the pen and highlighter buttons. */
+.tool .swatch-dot {
+  position: absolute;
+  bottom: 7px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 13px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--dot-color, currentColor);
+  box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.16);
+}
+
+.toolbar .divider {
+  width: 1px;
+  height: 24px;
+  margin: 0 5px;
+  background: var(--separator);
+}
+
+/* ==========================================================================
+   Popover — the palette that springs out of the active tool
+   ========================================================================== */
+
+.popover {
+  position: absolute;
+  bottom: 78px;
+  left: 50%;
+  padding: 14px;
+  width: 268px;
+  border-radius: var(--radius-lg);
+  background: var(--toolbar-bg);
+  backdrop-filter: var(--toolbar-blur);
+  -webkit-backdrop-filter: var(--toolbar-blur);
+  border: 0.5px solid var(--toolbar-border);
+  box-shadow: var(--toolbar-shadow);
+  z-index: 31;
+  transform-origin: var(--origin-x, 50%) calc(100% + 22px);
+  transition:
+    opacity var(--fast) var(--spring),
+    transform var(--medium) var(--spring-out);
+}
+
+.popover[hidden] {
+  display: block !important;
+  opacity: 0;
+  transform: translateX(-50%) scale(0.86);
+  pointer-events: none;
+}
+
+.popover:not([hidden]) {
+  opacity: 1;
+  transform: translateX(-50%) scale(1);
+}
+
+.popover-title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--label-tertiary);
+  margin-bottom: 10px;
+}
+
+.swatches {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 9px;
+  margin-bottom: 14px;
+}
+
+.swatch {
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: var(--c);
+  box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.18);
+  transition: transform var(--fast) var(--spring-out);
+}
+
+.swatch:hover {
+  transform: scale(1.14);
+}
+
+.swatch.on {
+  box-shadow:
+    0 0 0 2px var(--bg-elevated),
+    0 0 0 4px var(--accent);
+}
+
+.slider-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.slider-row .preview {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--label) 7%, transparent);
+  flex: 0 0 auto;
+}
+
+.slider-row .preview i {
+  display: block;
+  border-radius: 50%;
+  background: var(--dot-color, var(--label));
+}
+
+input[type='range'] {
+  flex: 1;
+  appearance: none;
+  height: 4px;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--label) 16%, transparent);
+  outline: none;
+}
+
+input[type='range']::-webkit-slider-thumb {
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow:
+    0 0 0 0.5px rgba(0, 0, 0, 0.1),
+    0 2px 6px rgba(0, 0, 0, 0.28);
+  transition: transform var(--fast) var(--spring-out);
+}
+
+input[type='range']::-webkit-slider-thumb:active {
+  transform: scale(1.18);
+}
+
+/* iOS segmented control */
+.segmented {
+  display: inline-flex;
+  padding: 2px;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--label) 8%, transparent);
+  gap: 2px;
+}
+
+.segmented button {
+  padding: 5px 11px;
+  border-radius: 7px;
+  font-size: 12px;
+  color: var(--label-secondary);
+  display: grid;
+  place-items: center;
+  transition:
+    background var(--fast) var(--spring),
+    color var(--fast) var(--spring),
+    box-shadow var(--fast) var(--spring);
+}
+
+.segmented button.on {
+  background: var(--surface-solid);
+  color: var(--label);
+  box-shadow:
+    0 0 0 0.5px rgba(0, 0, 0, 0.04),
+    0 1px 3px rgba(0, 0, 0, 0.14);
+}
+
+.segmented svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.switch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 12px;
+  font-size: 12px;
+}
+
+.switch {
+  width: 42px;
+  height: 25px;
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--label) 16%, transparent);
+  position: relative;
+  transition: background var(--medium) var(--spring);
+}
+
+.switch::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 21px;
+  height: 21px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  transition: transform var(--medium) var(--spring);
+}
+
+.switch.on {
+  background: var(--green);
+}
+
+.switch.on::after {
+  transform: translateX(17px);
+}
+
+/* ==========================================================================
+   Welcome screen
+   ========================================================================== */
+
+.welcome {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: var(--bg);
+  z-index: 20;
+  transition: opacity var(--medium) var(--spring);
+}
+
+.welcome[hidden] {
+  display: none;
+}
+
+.welcome-card {
+  width: min(460px, 84vw);
+  text-align: center;
+}
+
+.welcome h1 {
+  font-size: 27px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin: 18px 0 6px;
+}
+
+.welcome p {
+  color: var(--label-secondary);
+  margin: 0 0 22px;
+  font-size: 13px;
+}
+
+.welcome-mark {
+  width: 76px;
+  height: 76px;
+  margin: 0 auto;
+  border-radius: 19px;
+  background: linear-gradient(160deg, var(--accent), var(--indigo));
+  display: grid;
+  place-items: center;
+  box-shadow: 0 10px 28px color-mix(in srgb, var(--accent) 38%, transparent);
+}
+
+.welcome-mark svg {
+  width: 40px;
+  height: 40px;
+  fill: none;
+  stroke: #fff;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.btn-primary {
+  padding: 10px 22px;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+  color: #fff;
+  font-weight: 590;
+  font-size: 13px;
+  transition:
+    transform var(--fast) var(--spring-out),
+    filter var(--fast) var(--spring);
+}
+
+.btn-primary:hover {
+  filter: brightness(1.08);
+}
+
+.btn-primary:active {
+  transform: scale(0.96);
+}
+
+.recents {
+  margin-top: 26px;
+  text-align: left;
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--bg-elevated);
+  box-shadow: 0 0 0 0.5px var(--separator);
+}
+
+.recents-title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--label-tertiary);
+  padding: 10px 14px 6px;
+}
+
+.recent {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 14px;
+  text-align: left;
+  transition: background var(--fast) var(--spring);
+}
+
+.recent + .recent {
+  box-shadow: inset 0 0.5px 0 var(--separator);
+}
+
+.recent:hover {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.recent .name {
+  flex: 1;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.recent .path {
+  font-size: 11px;
+  color: var(--label-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 46%;
+  direction: rtl;
+}
+
+/* Drop target for dragging a PDF onto the window */
+.drop-veil {
+  position: absolute;
+  inset: 14px;
+  border: 2.5px dashed var(--accent);
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--accent) 9%, transparent);
+  display: grid;
+  place-items: center;
+  font-size: 15px;
+  font-weight: 590;
+  color: var(--accent);
+  z-index: 60;
+  pointer-events: none;
+  opacity: 0;
+  transform: scale(0.99);
+  transition:
+    opacity var(--fast) var(--spring),
+    transform var(--medium) var(--spring-out);
+}
+
+.drop-veil.on {
+  opacity: 1;
+  transform: scale(1);
+}
+
+/* ==========================================================================
+   Toast
+   ========================================================================== */
+
+.toast {
+  position: absolute;
+  top: 56px;
+  left: 50%;
+  transform: translateX(-50%) translateY(-14px) scale(0.94);
+  padding: 9px 16px;
+  border-radius: var(--radius-pill);
+  background: var(--toolbar-bg);
+  backdrop-filter: var(--toolbar-blur);
+  -webkit-backdrop-filter: var(--toolbar-blur);
+  border: 0.5px solid var(--toolbar-border);
+  box-shadow: var(--toolbar-shadow);
+  font-size: 12.5px;
+  font-weight: 500;
+  z-index: 70;
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity var(--fast) var(--spring),
+    transform var(--medium) var(--spring-out);
+  white-space: nowrap;
+}
+
+.toast.on {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0) scale(1);
+}
+
+.toast.warn {
+  color: var(--orange);
+}
+
+.toast.error {
+  color: var(--red);
+}
+
+/* Scrollbars, kept unobtrusive the way overlay scrollbars are on iOS */
+::-webkit-scrollbar {
+  width: 11px;
+  height: 11px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--label) 22%, transparent);
+  border-radius: 6px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--label) 34%, transparent);
+  background-clip: content-box;
+}

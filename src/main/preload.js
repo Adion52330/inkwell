@@ -2,7 +2,7 @@
 // funnelled through named IPC channels; the renderer never sees `fs` or
 // `require`, so a malformed PDF cannot reach the disk.
 
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
 contextBridge.exposeInMainWorld('inkwell', {
   // --- documents -----------------------------------------------------------
@@ -46,4 +46,14 @@ contextBridge.exposeInMainWorld('inkwell', {
   closeNow: () => ipcRenderer.send('window:close-now'),
   windowState: () => ipcRenderer.invoke('window:state'),
   ready: () => ipcRenderer.send('renderer:ready'),
+
+  // Modern Electron removed File.path from the renderer; this is the supported
+  // way to learn where a dropped file actually lives on disk.
+  pathForFile: (file) => {
+    try {
+      return webUtils.getPathForFile(file);
+    } catch {
+      return null;
+    }
+  },
 });
