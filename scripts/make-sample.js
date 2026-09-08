@@ -83,6 +83,15 @@ async function main() {
     });
   });
 
+  // Fixed metadata dates keep the generated file byte-identical between runs,
+  // so regenerating the sample does not show up as a spurious diff.
+  const epoch = new Date('2024-01-01T00:00:00Z');
+  doc.setCreationDate(epoch);
+  doc.setModificationDate(epoch);
+  doc.setTitle('Inkwell sample');
+  doc.setProducer('Inkwell sample generator');
+  doc.setCreator('Inkwell sample generator');
+
   const outDir = path.join(__dirname, '..', 'sample');
   fs.mkdirSync(outDir, { recursive: true });
   const outPath = path.join(outDir, 'sample.pdf');
