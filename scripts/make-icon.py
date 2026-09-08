@@ -87,7 +87,7 @@ def main():
         fill=ACCENT_TOP + (255,),
     )
 
-    # A written flourish under the nib — the "ink" the pen just laid down.
+    # A written flourish under the nib - the "ink" the pen just laid down.
     stroke = []
     for i in range(41):
         t = i / 40

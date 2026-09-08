@@ -32,8 +32,8 @@ Seven suites, all of which check rendered output rather than internal state:
 | `npm run test:text` | Text spans align with the glyphs beneath them, selection works, search highlights land on their match, and links navigate. |
 | `npm run test:sidebar` | Thumbnails keep their height when the list overflows, edit history records and travels, and search results group by page. |
 
-`scripts/lib/cdp.mjs` is the shared harness — launching the app with a
-throwaway profile, driving real input, reading back the ink canvas — and
+`scripts/lib/cdp.mjs` is the shared harness - launching the app with a
+throwaway profile, driving real input, reading back the ink canvas - and
 `scripts/lib/fixture.mjs` seeds a known sidecar. A new test is usually a few
 lines on top of those.
 
@@ -66,19 +66,19 @@ A few invariants worth knowing before you change things:
 
 - **The original PDF is never written to.** Ink goes in a sidecar; export writes
   a new file. If a change could modify the source file, it is wrong.
-- **Ink is stored in page space** — PDF points, origin top-left, on the
+- **Ink is stored in page space** - PDF points, origin top-left, on the
   unrotated page. Never store screen pixels; zoom and rotation would bake in.
 - **Every model mutation goes through `Store.apply`**, which is the single choke
   point for undo, autosave and repainting. Mutating a page directly will leave
   the screen and the saved file disagreeing.
 - **The store is the source of truth for the DOM layer too.** Text boxes and
   notes are real elements, so any command that adds or removes one has to
-  trigger `view.renderObjects(page)` — otherwise undo won't bring it back.
+  trigger `view.renderObjects(page)` - otherwise undo won't bring it back.
 - **Nothing may block the input path.** Pointer samples are queued and flushed
   once per animation frame. If you find yourself doing work per event, don't.
 - **The text layer's CSS is a contract, not styling.** `dist/styles/text-layer.css`
   is extracted from pdfjs-dist at build time. Editing it by hand, or dropping the
-  scale variables `.page` declares, silently misplaces every span — the layer
+  scale variables `.page` declares, silently misplaces every span - the layer
   still reports text, it is just in the wrong place.
 - **Layout is computed, not measured.** `PdfView` derives page positions from
   its own constants and the edge insets. Reading layout back from the DOM inside
@@ -94,7 +94,7 @@ A few invariants worth knowing before you change things:
 ## Pull requests
 
 Keep them focused, and say what you verified. If you fixed a rendering or
-coordinate bug, add a check to the relevant suite that fails without your fix —
+coordinate bug, add a check to the relevant suite that fails without your fix -
 `scripts/test-objects.mjs` is the easiest one to extend.
 
 By contributing you agree that your work is licensed under the MIT License.

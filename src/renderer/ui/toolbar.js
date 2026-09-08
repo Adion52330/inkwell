@@ -261,7 +261,7 @@ export class Toolbar extends EventTarget {
   /**
    * Place the popover on the far side of the palette from the page, whichever
    * edge the palette is docked to, and spring it out of the button that opened
-   * it — the visual link is what makes it feel attached rather than summoned.
+   * it - the visual link is what makes it feel attached rather than summoned.
    */
   #positionPopover(toolId) {
     const bounds = this.mount.getBoundingClientRect();

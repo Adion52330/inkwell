@@ -29,7 +29,7 @@ const clamp = (value, lo, hi) => (value < lo ? lo : value > hi ? hi : value);
 // On a 1x display, rasterising one canvas pixel per CSS pixel gives glyph edges
 // no room to antialias and text reads as soft. Rendering above the display's
 // density and letting the browser downsample restores that, at the cost of
-// memory — hence the budget below, which also keeps a page at extreme zoom from
+// memory - hence the budget below, which also keeps a page at extreme zoom from
 // asking for a canvas the GPU will refuse.
 const OVERSAMPLE = 1.5;
 const MAX_CANVAS_PIXELS = 36e6;
@@ -102,8 +102,8 @@ export class PdfView extends EventTarget {
     this.pdfDoc = await task.promise;
 
     // Only the first page is measured. Loading every page up front to collect
-    // geometry meant a thousand-page document spent a long time — and a lot of
-    // memory — before showing anything at all. The rest start as copies of page
+    // geometry meant a thousand-page document spent a long time - and a lot of
+    // memory - before showing anything at all. The rest start as copies of page
     // one and are corrected the moment they actually render, which is what the
     // `estimated` flag tracks.
     const first = await this.pdfDoc.getPage(1);
@@ -320,7 +320,7 @@ export class PdfView extends EventTarget {
    * CSS pixels → backing-store pixels for a page.
    *
    * Above the display density for smoother text, then pulled back if the page
-   * would exceed the canvas budget — a very deep zoom degrades gently instead
+   * would exceed the canvas budget - a very deep zoom degrades gently instead
    * of failing to allocate.
    */
   rasterFactor(index) {
@@ -434,8 +434,8 @@ export class PdfView extends EventTarget {
   /**
    * Build the clickable hotspots for a page's link annotations.
    *
-   * Rather than pdf.js's full AnnotationLayer — which needs a link service, an
-   * editor manager and a stylesheet — this reads the annotations directly and
+   * Rather than pdf.js's full AnnotationLayer - which needs a link service, an
+   * editor manager and a stylesheet - this reads the annotations directly and
    * places plain elements, which is all a link needs.
    */
   async #renderLinks(el, index, source) {
@@ -486,7 +486,7 @@ export class PdfView extends EventTarget {
     }
   }
 
-  /** Follow an internal destination — a contents entry or a cross reference. */
+  /** Follow an internal destination - a contents entry or a cross reference. */
   async goToDestination(dest, doc = this.pdfDoc) {
     try {
       const explicit = typeof dest === 'string' ? await doc.getDestination(dest) : dest;
@@ -626,7 +626,7 @@ export class PdfView extends EventTarget {
 
   /**
    * Repaint a page's committed strokes.
-   * @param {Set<string>} [exclude] ids to leave out — how the eraser shows its
+   * @param {Set<string>} [exclude] ids to leave out - how the eraser shows its
    *   work before the deletion is actually committed on pointer-up.
    */
   repaintInk(index, exclude) {
@@ -674,7 +674,7 @@ export class PdfView extends EventTarget {
     const ctx = canvas.getContext('2d');
     // Clearing has to happen in device pixels, but the context must be handed
     // back in page space. Leaving it on the identity transform made the live
-    // stroke paint in raw pixels — it appeared offset and shrunk while drawing,
+    // stroke paint in raw pixels - it appeared offset and shrunk while drawing,
     // then jumped into place when the committed layer repainted on release.
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -742,7 +742,7 @@ export class PdfView extends EventTarget {
   /**
    * Rebuild the DOM layer for a page's text boxes and notes. Public because the
    * store is the source of truth: any command that adds, removes or restores an
-   * object — including an undo — has to be reflected here, not just on canvas.
+   * object - including an undo - has to be reflected here, not just on canvas.
    */
   renderObjects(index) {
     this.#renderObjects(index);
@@ -969,7 +969,7 @@ export class PdfView extends EventTarget {
 
   /**
    * Zoom about a screen point. Wheel and pinch events arrive far faster than
-   * the display refreshes, so they are accumulated and applied once per frame —
+   * the display refreshes, so they are accumulated and applied once per frame -
    * the zoom still tracks the gesture exactly, but costs one relayout a frame
    * instead of one per event.
    */

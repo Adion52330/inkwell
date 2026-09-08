@@ -1,7 +1,7 @@
 // Turning stroke data into geometry.
 //
-// Every consumer — the wet canvas, the committed canvas, the thumbnail
-// sidebar, and the PDF exporter — comes through here, so a stroke can never
+// Every consumer - the wet canvas, the committed canvas, the thumbnail
+// sidebar, and the PDF exporter - comes through here, so a stroke can never
 // look one way on screen and another way in the exported file.
 
 import { getStroke } from 'perfect-freehand';
@@ -51,7 +51,7 @@ export function strokeToPath(stroke, { live = false } = {}) {
   return outlineToPath(getStroke(stroke.points, strokeOptions(stroke, { live })));
 }
 
-/** Same outline, as flat [[x,y], …] — what the PDF exporter needs. */
+/** Same outline, as flat [[x,y], …] - what the PDF exporter needs. */
 export function strokeToOutline(stroke) {
   return getStroke(stroke.points, strokeOptions(stroke, { live: false }));
 }
@@ -64,7 +64,7 @@ export function drawStroke(ctx, stroke, { live = false } = {}) {
   if (!stroke.points || stroke.points.length === 0) return;
   ctx.save();
   if (stroke.tool === 'highlighter') {
-    // Multiply keeps the words underneath legible — the whole point of a
+    // Multiply keeps the words underneath legible - the whole point of a
     // highlighter, and the thing naive alpha compositing gets wrong.
     ctx.globalCompositeOperation = 'multiply';
     ctx.globalAlpha = stroke.opacity ?? 0.4;
@@ -142,7 +142,7 @@ export function drawShape(ctx, shape) {
 }
 
 // ---------------------------------------------------------------------------
-// Hit testing — used by the eraser and the lasso
+// Hit testing - used by the eraser and the lasso
 // ---------------------------------------------------------------------------
 
 function bboxHit(bbox, x, y, radius) {

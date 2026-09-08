@@ -3,7 +3,7 @@
 // The tests all work the same way: launch the real application, drive it with
 // real input, and check what actually got rendered. Going through CDP rather
 // than a desktop automation tool means this behaves identically on X11, on
-// Wayland and headless under xvfb — X11 grabbers cannot see a Wayland window
+// Wayland and headless under xvfb - X11 grabbers cannot see a Wayland window
 // at all.
 
 import { spawn } from 'child_process';
@@ -25,8 +25,8 @@ export const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 export async function launch({ port, pdf, args = [], settleMs = 4500 }) {
   const root = process.cwd();
   const binary = process.env.INKWELL_BIN || path.join(root, 'node_modules/electron/dist/electron');
-  // Electron's postinstall does not always run — npm can be configured with
-  // ignore-scripts, and CI images often are — leaving the package installed but
+  // Electron's postinstall does not always run - npm can be configured with
+  // ignore-scripts, and CI images often are - leaving the package installed but
   // the binary absent. Say so plainly instead of failing later with a bare
   // spawn ENOENT that names a path and nothing else.
   if (!fs.existsSync(binary)) {
@@ -131,7 +131,7 @@ export async function evaluate(send, expression) {
   return result?.result?.result?.value;
 }
 
-/** Real trusted mouse input — the same path a physical mouse takes. */
+/** Real trusted mouse input - the same path a physical mouse takes. */
 export const mouse = (send, type, x, y, extra = {}) =>
   send('Input.dispatchMouseEvent', {
     type,
@@ -202,7 +202,7 @@ export function createReporter() {
   const failures = [];
   return {
     check(name, ok, detail) {
-      console.log(`${ok ? 'ok  ' : 'FAIL'}  ${name}${detail ? `  — ${detail}` : ''}`);
+      console.log(`${ok ? 'ok  ' : 'FAIL'}  ${name}${detail ? `  - ${detail}` : ''}`);
       if (!ok) failures.push(name);
     },
     finish(successMessage) {

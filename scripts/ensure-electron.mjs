@@ -2,8 +2,8 @@
 // Make sure the Electron binary is actually on disk.
 //
 // The `electron` package ships as a small stub whose postinstall script fetches
-// the real ~100 MB binary. That postinstall does not always run — npm can be
-// configured with ignore-scripts, and CI images often are — which leaves
+// the real ~100 MB binary. That postinstall does not always run - npm can be
+// configured with ignore-scripts, and CI images often are - which leaves
 // node_modules/electron present but node_modules/electron/dist missing. The
 // failure then surfaces much later as a bare `spawn … ENOENT` from whatever
 // tries to launch the app, which says nothing about the cause.
@@ -33,7 +33,7 @@ function binaryPath() {
 
 async function main() {
   if (!fs.existsSync(installer)) {
-    console.error('electron is not installed — run `npm ci` first');
+    console.error('electron is not installed - run `npm ci` first');
     process.exit(1);
   }
 

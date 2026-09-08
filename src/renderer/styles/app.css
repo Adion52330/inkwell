@@ -1,5 +1,5 @@
 @import './tokens.css';
-/* Generated at build time from pdf.js's own stylesheet — see scripts/build.js. */
+/* Generated at build time from pdf.js's own stylesheet - see scripts/build.js. */
 @import './text-layer.css';
 
 * {
@@ -19,7 +19,7 @@ body {
   color: var(--label);
   background: var(--bg);
   -webkit-font-smoothing: antialiased;
-  /* Nothing in the chrome should be text-selectable — this is an app, not a
+  /* Nothing in the chrome should be text-selectable - this is an app, not a
    * document. The PDF's own text layer opts back in. */
   user-select: none;
   cursor: default;
@@ -35,7 +35,7 @@ button {
 }
 
 /* ==========================================================================
-   App bar — an ordinary toolbar. The window keeps its native decorations and
+   App bar - an ordinary toolbar. The window keeps its native decorations and
    native menu bar, which sit above this.
    ========================================================================== */
 
@@ -337,7 +337,7 @@ button {
 .thumb {
   position: relative;
   /* Flex items shrink by default. In a column of 360 thumbnails that overflows
-   * its container, every one gets squashed to zero height — the sidebar becomes
+   * its container, every one gets squashed to zero height - the sidebar becomes
    * a stack of hairlines. They must keep their aspect-ratio height. */
   flex: 0 0 auto;
   border-radius: var(--radius-sm);
@@ -483,7 +483,7 @@ button {
 
 /* Link hotspots follow the same rule as the text layer: inert while drawing,
  * live in the reading tools, so a stroke over a contents entry still draws. */
-/* The layer itself is always inert — it covers the whole page, so making it
+/* The layer itself is always inert - it covers the whole page, so making it
  * clickable would swallow every pointer event meant for the text underneath
  * and quietly break selection. Only the hotspots take the pointer. */
 .page .link-layer {
@@ -545,7 +545,7 @@ button {
    * not pull in (it only takes .textLayer rules), so they have to be declared
    * here. Without them --total-scale-factor is undefined, every span's
    * font-size and offset resolve to nothing, and the text layer ends up
-   * mispositioned — selection grabs the wrong words and search highlights sit
+   * mispositioned - selection grabs the wrong words and search highlights sit
    * away from the text they match. --scale-factor itself is written per page
    * by PdfView.applySizes. */
   --user-unit: 1;
@@ -622,7 +622,7 @@ button {
 }
 
 /* ==========================================================================
-   Placed objects — text boxes and sticky notes
+   Placed objects - text boxes and sticky notes
    ========================================================================== */
 
 .obj {
@@ -883,7 +883,7 @@ button {
 }
 
 /* ==========================================================================
-   Menus — the overflow (⋯) menu and the zoom presets
+   Menus - the overflow (⋯) menu and the zoom presets
    ========================================================================== */
 
 .menu {
@@ -988,7 +988,7 @@ button {
 }
 
 /* ==========================================================================
-   Brush cursor — a true-size nib in place of a crosshair
+   Brush cursor - a true-size nib in place of a crosshair
    ========================================================================== */
 
 .brush-cursor {
@@ -1045,7 +1045,7 @@ button {
 
 .toolbar {
   position: absolute;
-  /* left/top are written by Toolbar.applyDock — the palette can be dragged to
+  /* left/top are written by Toolbar.applyDock - the palette can be dragged to
    * any edge so it never permanently covers part of the page. */
   display: flex;
   align-items: center;
@@ -1171,7 +1171,7 @@ button {
   background: color-mix(in srgb, var(--label) 7%, transparent);
 }
 
-/* The selected tool lifts out of the palette rather than just changing colour —
+/* The selected tool lifts out of the palette rather than just changing colour -
  * the single strongest cue that this is a physical set of pens. */
 .tool.active {
   color: #fff;
@@ -1223,7 +1223,7 @@ button {
 }
 
 /* ==========================================================================
-   Popover — the palette that springs out of the active tool
+   Popover - the palette that springs out of the active tool
    ========================================================================== */
 
 .popover {

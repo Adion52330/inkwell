@@ -2,7 +2,7 @@
 # Install Inkwell into the desktop environment and, optionally, make it the
 # default PDF handler.
 #
-# Everything is written under $HOME — nothing needs root, and nothing outside
+# Everything is written under $HOME - nothing needs root, and nothing outside
 # the user's own XDG directories is touched. Run with --uninstall to reverse it.
 #
 #   scripts/install-desktop.sh              install and set as default

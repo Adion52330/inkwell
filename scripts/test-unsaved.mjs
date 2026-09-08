@@ -5,7 +5,7 @@
 // which puts a native Save / Don't Save / Cancel dialog up. A native dialog
 // cannot be inspected over the DevTools Protocol, but its effect can: while it
 // is waiting, the window must still exist. So the test asks whether the page
-// target survives a close attempt — vetoed when dirty, gone when clean.
+// target survives a close attempt - vetoed when dirty, gone when clean.
 //
 // Checking through the target list rather than through the page means a modal
 // dialog cannot wedge the test.

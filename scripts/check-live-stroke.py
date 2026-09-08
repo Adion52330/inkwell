@@ -67,10 +67,10 @@ def main():
     print(f"released  ink bbox: {after}")
 
     if during is None:
-        print("\nFAIL: no ink visible while drawing — the live stroke never painted")
+        print("\nFAIL: no ink visible while drawing - the live stroke never painted")
         return 1
     if after is None:
-        print("\nFAIL: no ink after release — the stroke was not committed")
+        print("\nFAIL: no ink after release - the stroke was not committed")
         return 1
 
     # A few pixels of difference is expected: the wet stroke has an open tail
@@ -80,7 +80,7 @@ def main():
     if drift > 12:
         print(
             "\nFAIL: the stroke moved when the pointer was released.\n"
-            "The live and committed layers disagree — check the wet canvas transform."
+            "The live and committed layers disagree - check the wet canvas transform."
         )
         return 1
     print("\nPASS: ink is drawn where the pointer is, and stays there on release")

@@ -47,7 +47,7 @@ async function main() {
     if (tool !== 'Pen') throw new Error(`expected the Pen tool to be active, got ${tool}`);
     await sleep(500);
 
-    // Press and move, but do not release — the bug only showed mid-gesture, so
+    // Press and move, but do not release - the bug only showed mid-gesture, so
     // the first capture has to happen before the pointer comes up.
     await mouse(send, 'mousePressed', DRAG.x0, DRAG.y);
     const steps = 24;

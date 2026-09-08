@@ -33,7 +33,7 @@ export function defaultNoteObject(x, y, tools) {
 
 /**
  * Build the DOM for one object. Positioning is left to the caller, which knows
- * the current scale — this only owns appearance and editing behaviour.
+ * the current scale - this only owns appearance and editing behaviour.
  */
 export function createObjectElement(object, { onEdit, onSelect, onDragEnd, onDelete }) {
   const el = document.createElement('div');
@@ -62,7 +62,7 @@ export function createObjectElement(object, { onEdit, onSelect, onDragEnd, onDel
     });
 
     // Without this there is no obvious way to get rid of a text box that has
-    // text in it — blur only cleans up empty ones.
+    // text in it - blur only cleans up empty ones.
     const remove = document.createElement('button');
     remove.className = 'obj-remove';
     remove.type = 'button';
@@ -125,7 +125,7 @@ export function createObjectElement(object, { onEdit, onSelect, onDragEnd, onDel
   let drag = null;
   el.addEventListener('pointerdown', (event) => {
     // Stop the event reaching the ink engine's delegated listener even when the
-    // click lands in the editable text — otherwise clicking into a text box
+    // click lands in the editable text - otherwise clicking into a text box
     // with the pen selected would draw a stroke across it.
     event.stopPropagation();
     if (event.target.isContentEditable) return;

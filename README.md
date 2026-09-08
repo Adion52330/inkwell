@@ -4,7 +4,7 @@ A desktop PDF reader you can write on. Built for Linux, shipped as an AppImage.
 
 Existing Linux options tend to split the problem in half: viewers that render
 PDFs faithfully but annotate badly, and note apps that ink beautifully but treat
-the PDF as a dumb backdrop. Inkwell does both — pdf.js rendering underneath a
+the PDF as a dumb backdrop. Inkwell does both - pdf.js rendering underneath a
 low-latency, pressure-sensitive vector ink layer.
 
 **Your original PDF is never modified.** Ink lives in a small `.ink.json` file
@@ -43,7 +43,7 @@ Each one checks rendered output rather than internal state: they rasterise real
 pages or compare real frames. Every coordinate bug this project has had would
 have passed a unit test written from the same assumptions as the code.
 
-Needs `poppler-utils`, Python 3 with Pillow, and a display — `xvfb-run -a npm
+Needs `poppler-utils`, Python 3 with Pillow, and a display - `xvfb-run -a npm
 test` works headless.
 
 ## Building the AppImage
@@ -53,7 +53,7 @@ npm run dist
 ```
 
 The result lands in `release/Inkwell-<version>-x86_64.AppImage`. Mark it
-executable and run it — no installation, no runtime dependencies beyond FUSE:
+executable and run it - no installation, no runtime dependencies beyond FUSE:
 
 ```bash
 chmod +x release/Inkwell-*.AppImage
@@ -68,7 +68,7 @@ npm run install:desktop
 
 Copies the AppImage to `~/Applications`, installs a launcher and icon under
 `~/.local/share`, and sets Inkwell as the handler for `application/pdf`.
-Everything lands in your own home directory — no root, nothing outside XDG
+Everything lands in your own home directory - no root, nothing outside XDG
 directories. To install the launcher without changing your default viewer, pass
 `--no-default`; to reverse the whole thing, including handing the PDF
 association back to whatever you used before:
@@ -86,7 +86,7 @@ engineering is on the input path.
 
 **Every sample is used.** Chromium delivers pointer events once per frame by
 default, which throws away most of what a 240 Hz stylus reports.
-`getCoalescedEvents()` recovers the full set — this is the difference between a
+`getCoalescedEvents()` recovers the full set - this is the difference between a
 curve and a chain of visible facets when you write quickly.
 
 **Work happens once per frame.** Samples are queued as they arrive and drained
@@ -106,8 +106,8 @@ draws as fast as the first.
 | Mouse / trackpad | Width is derived from pointer velocity, so lines still taper naturally instead of being uniform sausages |
 | Finger | Pans and pinch-zooms. Never draws |
 
-**Palm rejection.** Once the pen is seen, touch input is suppressed briefly —
-including native touch scrolling — so a hand resting on the screen mid-sentence
+**Palm rejection.** Once the pen is seen, touch input is suppressed briefly -
+including native touch scrolling - so a hand resting on the screen mid-sentence
 can neither draw nor scroll the page out from under you.
 
 **The cursor is the nib.** Instead of a crosshair, the pointer *is* the mark you
@@ -123,7 +123,7 @@ nothing is ever hidden underneath it. Where you left it is remembered.
 
 Inkwell is a reader as well as an annotator. The **Select text** tool (`8`) turns
 the page into real text: drag to select, `Ctrl+C` to copy. It and the **Pan**
-tool are the reading modes, where links become clickable — a contents entry
+tool are the reading modes, where links become clickable - a contents entry
 jumps to its page, an external URL opens in your browser.
 
 **Find** (`Ctrl+F`) searches the whole document and opens the sidebar on its
@@ -133,12 +133,12 @@ as the scan runs rather than after it, so a long document is usable immediately;
 real glyph rectangles so they sit exactly on the words they matched.
 
 The sidebar has three tabs: **Pages** for thumbnails and page operations,
-**Results** for the current search, and **History** — every change you have made,
+**Results** for the current search, and **History** - every change you have made,
 newest first, with the page and time. Clicking an entry travels to that state,
 which is undo and redo without counting keystrokes; undone entries stay listed
 so going forward again is one click.
 
-The page indicator in the toolbar shows where you are and takes a page number —
+The page indicator in the toolbar shows where you are and takes a page number -
 type one and press `Enter` to jump.
 
 The toolbar carries controls and nothing else: the document's name and its
@@ -148,21 +148,21 @@ twice.
 
 ## Tools
 
-- **Pen** — pressure-tapered ink, twelve colours, 1–16 pt
-- **Highlighter** — flat chisel nib with a multiply blend, so text underneath
+- **Pen** - pressure-tapered ink, twelve colours, 1–16 pt
+- **Highlighter** - flat chisel nib with a multiply blend, so text underneath
   stays readable
-- **Eraser** — removes whole strokes rather than nibbling pixels, which keeps
+- **Eraser** - removes whole strokes rather than nibbling pixels, which keeps
   files small and every erase undoable
-- **Lasso** — selects ink by enclosure and drags it; Delete removes it
-- **Text boxes** — real `contenteditable`, so the caret, selection and IME come
+- **Lasso** - selects ink by enclosure and drags it; Delete removes it
+- **Text boxes** - real `contenteditable`, so the caret, selection and IME come
   from the platform and text stays crisp at any zoom
-- **Sticky notes** — collapsible comments that export as genuine PDF `/Text`
+- **Sticky notes** - collapsible comments that export as genuine PDF `/Text`
   annotations other viewers can read
-- **Shapes** — line, arrow, rectangle, ellipse, optionally filled
-- **Page operations** — rotate, insert blank, delete, drag-to-reorder in the
+- **Shapes** - line, arrow, rectangle, ellipse, optionally filled
+- **Page operations** - rotate, insert blank, delete, drag-to-reorder in the
   sidebar, and append another PDF
 
-Tapping the tool you already have selected opens its settings — the GoodNotes
+Tapping the tool you already have selected opens its settings - the GoodNotes
 gesture, which is why the palette can stay a single row. The palette itself is
 glass: it blurs and refracts the page beneath it rather than sitting on top as
 an opaque bar.
@@ -172,8 +172,8 @@ strokes, shapes, text boxes and notes on contact; the lasso selects a group and
 `Delete` removes it; and text boxes and notes carry their own × button. All of
 it is a single undo step.
 
-Everything else — open, save, export, page operations, zoom presets, full
-screen — lives behind the **⋯** button in the toolbar. There is no menu bar:
+Everything else - open, save, export, page operations, zoom presets, full
+screen - lives behind the **⋯** button in the toolbar. There is no menu bar:
 the window keeps its native frame, but the application's own commands live in
 the application, next to what they act on.
 
@@ -214,7 +214,7 @@ src/renderer/
 ### Ink is stored in page space
 
 Strokes are recorded in PDF points with the origin at the page's top-left, on
-the *unrotated* page — not in screen pixels. Two things fall out of that: zoom
+the *unrotated* page - not in screen pixels. Two things fall out of that: zoom
 never degrades a stroke (a line drawn at 50% is sharp at 400%), and rotating a
 page moves the paper rather than the notes, so ink keeps its position relative to
 the words it annotates.
@@ -225,11 +225,11 @@ A PDF content stream works in user space (origin bottom-left, y up, unrotated
 MediaBox), while ink is stored in viewport space. Rather than hand-deriving that
 mapping for each `/Rotate` value, the exporter inverts the very matrix pdf.js
 used to lay the page out. That is exact for rotated pages and for pages whose
-MediaBox does not start at the origin — the two cases where hand-rolled maths
+MediaBox does not start at the origin - the two cases where hand-rolled maths
 usually goes wrong. `sample/sample.pdf` deliberately includes a rotated page to
 exercise it.
 
-The exported file is the same drawing, not an approximation of it — the
+The exported file is the same drawing, not an approximation of it - the
 highlighter keeps its multiply blend so text stays readable, and a sticky note
 becomes a real PDF `/Text` annotation rather than a coloured square burned into
 the page:
@@ -241,7 +241,7 @@ the page:
 The sidecar is written to a temporary file in the same directory and then
 `rename`d over the target. Rename is atomic within a filesystem, so a crash or a
 full disk mid-write leaves the previous version intact rather than a truncated
-one. If ink is added while a save is in flight, the dirty flag is *not* cleared —
+one. If ink is added while a save is in flight, the dirty flag is *not* cleared -
 those strokes get their own save rather than being silently considered written.
 
 The sidecar records a hash of the source PDF. Opening notes against a PDF that
@@ -254,7 +254,7 @@ exactly over the rendered glyphs. That geometry depends on CSS variables pdf.js
 declares on its own page element, and its stylesheet is extracted from the
 installed package at build time rather than hand-copied, so it cannot drift when
 pdfjs-dist is upgraded. `test:text` measures a span's position in PDF points
-against the coordinates the sample was actually drawn at — the check that would
+against the coordinates the sample was actually drawn at - the check that would
 have caught the layer being silently misplaced.
 
 ### Zoom is arithmetic, not measurement
@@ -276,7 +276,7 @@ rather than asking for a canvas the GPU will refuse.
 ### Large documents open immediately
 
 Only the first page is measured up front. Loading every page to collect its
-geometry meant a thousand-page file spent a long time — and a lot of memory —
+geometry meant a thousand-page file spent a long time - and a lot of memory -
 before showing anything; the rest start as copies of page one and are corrected
 the moment they actually render. Export resolves any page that carries ink but
 was never displayed, so nothing is flattened through an assumed matrix.
@@ -304,11 +304,11 @@ keeps zooming smooth rather than stuttering on every wheel tick.
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) — it covers the layout of the code and
+See [CONTRIBUTING.md](CONTRIBUTING.md) - it covers the layout of the code and
 the handful of invariants worth knowing before changing anything (the original
 PDF is never written to; ink is stored in page space; every mutation goes
 through the store's command stack).
 
 ## Licence
 
-MIT — see [LICENSE](LICENSE).
+MIT - see [LICENSE](LICENSE).

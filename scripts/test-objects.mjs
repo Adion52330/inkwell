@@ -7,7 +7,7 @@
 //      deleted and the next repaint restored it.
 //   2. Text boxes had no delete affordance at all.
 //   3. Selecting a note and pressing Delete did nothing, because the view and
-//      the ink engine each held their own copy of the selection — and even once
+//      the ink engine each held their own copy of the selection - and even once
 //      the model was updated, the object DOM layer was never rebuilt.
 //
 // The page is inspected through the DOM and the ink canvas only; no test-only

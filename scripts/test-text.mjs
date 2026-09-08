@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // The text layer: selection, search and links.
 //
-// All three ride on the same thing — pdf.js's transparent text spans sitting
-// exactly over the rendered glyphs — so all three break together when the
+// All three ride on the same thing - pdf.js's transparent text spans sitting
+// exactly over the rendered glyphs - so all three break together when the
 // layer is misaligned. That is not hypothetical: the spans' geometry depends on
 // CSS variables (--total-scale-factor and friends) that pdf.js declares on its
 // own page element. Missing them, the layer still renders and still reports

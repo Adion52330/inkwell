@@ -2,7 +2,7 @@
 // Generates sample/sample.pdf for manual testing.
 //
 // Deliberately mixed: a Letter page, an A4 page, and a page with /Rotate 90.
-// The rotated page is the interesting one — it is what catches coordinate bugs
+// The rotated page is the interesting one - it is what catches coordinate bugs
 // in hit-testing and in the exporter, which most PDFs would never expose.
 
 const fs = require('fs');
@@ -15,9 +15,9 @@ async function main() {
   const bold = await doc.embedFont(StandardFonts.HelveticaBold);
 
   const pages = [
-    { size: [612, 792], rotate: 0, title: 'Page one — US Letter' },
-    { size: [595.28, 841.89], rotate: 0, title: 'Page two — A4' },
-    { size: [612, 792], rotate: 90, title: 'Page three — rotated 90°' },
+    { size: [612, 792], rotate: 0, title: 'Page one - US Letter' },
+    { size: [595.28, 841.89], rotate: 0, title: 'Page two - A4' },
+    { size: [612, 792], rotate: 90, title: 'Page three - rotated 90°' },
   ];
 
   const lorem = [
@@ -25,7 +25,7 @@ async function main() {
     'stroke width; with a mouse the width follows how fast you move, so lines',
     'still taper naturally at the ends.',
     '',
-    'Try the highlighter over this paragraph — it uses a multiply blend, so the',
+    'Try the highlighter over this paragraph - it uses a multiply blend, so the',
     'text underneath stays readable rather than being washed out. Then export',
     'the document and check the highlight survives the round trip.',
     '',

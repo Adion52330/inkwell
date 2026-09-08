@@ -442,7 +442,7 @@ async function openDocument(filePath) {
     if (sidecar) {
       const result = store.hydrate(sidecar);
       if (result?.mismatched) {
-        toast('The PDF changed since these notes were made — ink may not line up', 'warn');
+        toast('The PDF changed since these notes were made - ink may not line up', 'warn');
       }
     }
 
@@ -466,7 +466,7 @@ async function openDocument(filePath) {
 
 /**
  * The window's own title bar is the document's name, and carries the unsaved
- * marker — the usual convention, and the reason none of this needs repeating
+ * marker - the usual convention, and the reason none of this needs repeating
  * inside the app's toolbar.
  */
 function updateWindowTitle() {
@@ -474,14 +474,14 @@ function updateWindowTitle() {
     document.title = 'Inkwell';
     return;
   }
-  document.title = `${store.isDirty ? '• ' : ''}${store.doc.name} — Inkwell`;
+  document.title = `${store.isDirty ? '• ' : ''}${store.doc.name} - Inkwell`;
 }
 
 /**
  * Put unsaved work to the user before it would be lost.
  * Returns 'save' | 'discard' | 'cancel'; 'save' has already been written by the
- * time this resolves. Discarding simply leaves the sidecar as it was on disk —
- * the last saved state — so nothing has to be rolled back in memory.
+ * time this resolves. Discarding simply leaves the sidecar as it was on disk -
+ * the last saved state - so nothing has to be rolled back in memory.
  */
 async function confirmUnsaved() {
   if (!store.doc || !store.isDirty) return 'save';
@@ -527,7 +527,7 @@ store.addEventListener('change', (event) => {
     for (const index of pages) {
       view.repaintInk(index);
       // Text boxes and notes live in the DOM, not on the ink canvas, so they
-      // need their own rebuild — otherwise a deleted note stays on screen and
+      // need their own rebuild - otherwise a deleted note stays on screen and
       // an undone deletion never comes back.
       view.renderObjects(index);
       if (sidebar.open && sidebar.tab === 'pages') sidebar.invalidate(index);
@@ -752,7 +752,7 @@ function isEditing(target) {
 
 /**
  * Shortcuts that used to come from the native menu bar. With the menu gone they
- * have to be bound here — which is also the only place that can tell whether a
+ * have to be bound here - which is also the only place that can tell whether a
  * text box has focus, so typing never triggers them.
  */
 function handleModifierShortcut(event) {

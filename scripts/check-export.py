@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Verify that exported ink lands where it was drawn.
 
-Ink is stored in viewport space — the coordinate system the user actually sees.
+Ink is stored in viewport space - the coordinate system the user actually sees.
 So a probe stroke drawn at page-space (x, y) must appear at (x, y) in a 72 dpi
 raster of the exported page. Checking this against a rendered image, rather than
 against our own maths, is what makes the test meaningful: it catches a wrong

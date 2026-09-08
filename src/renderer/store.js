@@ -114,7 +114,7 @@ export class Store extends EventTarget {
     if (Array.isArray(sidecar.order)) this.doc.order = sidecar.order;
     if (Array.isArray(sidecar.sizes) && sidecar.sizes.length) this.doc.sizes = sidecar.sizes;
 
-    // Loading a sidecar is not an edit — the on-disk copy already matches.
+    // Loading a sidecar is not an edit - the on-disk copy already matches.
     this.savedAt = this.revision;
     this.#emit('hydrate');
     return { mismatched };
@@ -215,7 +215,7 @@ export class Store extends EventTarget {
   }
 
   /**
-   * Undo or redo until exactly `count` commands are applied — what clicking an
+   * Undo or redo until exactly `count` commands are applied - what clicking an
    * entry in the history panel does.
    */
   travelTo(count) {
@@ -285,7 +285,7 @@ export class Store extends EventTarget {
     return true;
   }
 
-  /** Nudge strokes and objects together — the lasso drag. */
+  /** Nudge strokes and objects together - the lasso drag. */
   translateSelection(pageIndex, strokeIds, objectIds, dx, dy) {
     if (!dx && !dy) return;
     const page = this.page(pageIndex);

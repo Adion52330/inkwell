@@ -14,7 +14,7 @@ const SIZED_TOOLS = new Set(['pen', 'highlighter', 'eraser']);
 const PRECISE_TOOLS = new Set(['lasso', 'shape', 'text', 'note']);
 
 // Below this a true-to-size dot would be a single hard-to-see pixel, so the
-// ring is floored — the fill still shows the real width.
+// ring is floored - the fill still shows the real width.
 const MIN_VISIBLE = 5;
 
 export class BrushCursor {

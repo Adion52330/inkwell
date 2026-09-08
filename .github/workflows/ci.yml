@@ -42,8 +42,8 @@ jobs:
       - run: npm ci
 
       - name: Ensure the Electron binary is present
-        # npm ci does not always run electron's postinstall — CI images are
-        # frequently configured with ignore-scripts — which leaves the package
+        # npm ci does not always run electron's postinstall - CI images are
+        # frequently configured with ignore-scripts - which leaves the package
         # installed but the binary missing.
         run: npm run ensure:electron
 

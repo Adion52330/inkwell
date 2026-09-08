@@ -52,7 +52,7 @@ async function pushRecent(filePath) {
 }
 
 // ---------------------------------------------------------------------------
-// Sidecar storage — <name>.ink.json beside the PDF
+// Sidecar storage - <name>.ink.json beside the PDF
 // ---------------------------------------------------------------------------
 
 function sidecarPathFor(pdfPath) {

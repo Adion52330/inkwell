@@ -2,7 +2,7 @@
 //
 // The invariant worth testing is this: ink is stored in *viewport* space, which
 // is exactly what the user sees. So a stroke drawn at page-space (x, y) must
-// land at (x, y) in a 72 dpi raster of the exported page — including on a page
+// land at (x, y) in a 72 dpi raster of the exported page - including on a page
 // with /Rotate 90, where the naive mapping silently transposes everything.
 //
 // Run via `npm run test:export`, which bundles this and rasterises the result.
@@ -32,7 +32,7 @@ pdfjs.GlobalWorkerOptions.workerSrc = path.join(
 async function main() {
   const bytes = new Uint8Array(fs.readFileSync(samplePath));
 
-  // Read real viewport matrices from pdf.js — the whole point is to verify the
+  // Read real viewport matrices from pdf.js - the whole point is to verify the
   // exporter against the same numbers the viewer lays pages out with.
   const doc = await pdfjs.getDocument({ data: bytes.slice(), useSystemFonts: false }).promise;
   const sizes = [];

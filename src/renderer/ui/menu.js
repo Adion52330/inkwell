@@ -1,8 +1,8 @@
 // A dropdown menu.
 //
 // Used for the overflow (⋯) menu and the zoom presets. Items are built fresh
-// each time it opens so they can reflect the current state — whether undo is
-// available, which zoom level is active, what the recent files are — rather
+// each time it opens so they can reflect the current state - whether undo is
+// available, which zoom level is active, what the recent files are - rather
 // than being wired once and then kept in sync by hand.
 
 const clamp = (value, lo, hi) => (value < lo ? lo : value > hi ? hi : value);

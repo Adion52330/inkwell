@@ -28,8 +28,8 @@ const VELOCITY_MAX = 2.4;
 
 const clamp = (value, lo, hi) => (value < lo ? lo : value > hi ? hi : value);
 
-// Tools that consume the pointer. Anything else — panning, selecting text,
-// following a link — must be left entirely alone, including pointer capture:
+// Tools that consume the pointer. Anything else - panning, selecting text,
+// following a link - must be left entirely alone, including pointer capture:
 // capturing on the viewer redirects later events away from the text layer and
 // silently breaks native text selection.
 const DRAWING_TOOLS = new Set(['pen', 'highlighter', 'eraser', 'lasso', 'shape', 'text', 'note']);
@@ -60,8 +60,8 @@ export class InkEngine {
     this.flush = this.flush.bind(this);
 
     viewer.addEventListener('pointerdown', this.onPointerDown);
-    // Move/up are bound to the window so a stroke that leaves the page — or the
-    // window — still finishes cleanly instead of hanging half-drawn.
+    // Move/up are bound to the window so a stroke that leaves the page - or the
+    // window - still finishes cleanly instead of hanging half-drawn.
     window.addEventListener('pointermove', this.onPointerMove, { passive: false });
     window.addEventListener('pointerup', this.onPointerUp);
     window.addEventListener('pointercancel', this.onPointerUp);
@@ -338,7 +338,7 @@ export class InkEngine {
     const stroke = gesture.stroke;
     if (!stroke || stroke.points.length === 0) return;
     // A tap with no movement should still leave a dot, so give it a second
-    // point a hair away — a single-point outline has no area to fill.
+    // point a hair away - a single-point outline has no area to fill.
     if (stroke.points.length === 1) {
       const [x, y, p] = stroke.points[0];
       stroke.points.push([x + 0.01, y + 0.01, p]);
@@ -359,7 +359,7 @@ export class InkEngine {
         changed = true;
       }
     }
-    // The eraser takes shapes, text boxes and notes as well as ink — otherwise
+    // The eraser takes shapes, text boxes and notes as well as ink - otherwise
     // there is no obvious way to get rid of them.
     for (const object of page.objects) {
       if (gesture.erased.has(object.id)) continue;
@@ -453,7 +453,7 @@ export class InkEngine {
     }
   }
 
-  /** True while a resting palm should be ignored — consulted by the pan logic. */
+  /** True while a resting palm should be ignored - consulted by the pan logic. */
   isPalmWindow(event) {
     return event.pointerType === 'touch' && event.timeStamp - this.lastPenAt < PALM_REJECT_MS;
   }

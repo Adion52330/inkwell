@@ -5,8 +5,8 @@
 //   Counting  walks every page's text content, which works whether or not the
 //             page has ever been on screen.
 //   Highlight is derived from the rendered text layer's actual spans, using a
-//             DOM Range. Ranges give exact glyph rectangles — including for a
-//             match that spans several spans or wraps a line — which
+//             DOM Range. Ranges give exact glyph rectangles - including for a
+//             match that spans several spans or wraps a line - which
 //             reconstructing boxes from text-item transforms would only
 //             approximate.
 //
@@ -33,7 +33,7 @@ function snippetAround(text, start, end) {
  *
  * The map is the point. Collapsing runs of whitespace changes the length of the
  * string, so an offset found in the folded text does not address the same
- * character in the raw text — and the raw offsets are what the DOM ranges and
+ * character in the raw text - and the raw offsets are what the DOM ranges and
  * the snippets need. Searching the folded text and then reading the raw text at
  * the folded offset silently highlights the wrong words on any page that
  * contains a double space.
@@ -75,7 +75,7 @@ export class Search extends EventTarget {
     this.scanning = false;
     this.token = 0;
 
-    // Re-draw highlights when a page (re)renders — zooming rebuilds the spans
+    // Re-draw highlights when a page (re)renders - zooming rebuilds the spans
     // the ranges point at.
     view.addEventListener('rendered', (event) => {
       if (this.matches.length) this.highlightPage(event.detail.page);

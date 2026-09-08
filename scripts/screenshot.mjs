@@ -2,7 +2,7 @@
 // Launch the app, screenshot the window, and exit.
 //
 // Uses the Chrome DevTools Protocol rather than a desktop screenshot tool
-// because those are display-server specific — X11 grabbers cannot see a Wayland
+// because those are display-server specific - X11 grabbers cannot see a Wayland
 // Electron window at all. Going through CDP captures the rendered page itself,
 // so it works identically on X11, Wayland and headless CI.
 //
@@ -149,7 +149,7 @@ async function main() {
       await sleep(300);
     }
 
-    // Surface any renderer errors — a blank screenshot is otherwise silent.
+    // Surface any renderer errors - a blank screenshot is otherwise silent.
     const errors = await send('Runtime.evaluate', {
       expression: 'JSON.stringify(window.__inkwellErrors || [])',
       returnByValue: true,
