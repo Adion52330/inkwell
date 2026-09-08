@@ -179,6 +179,87 @@ export function strokeHit(stroke, x, y, radius) {
   return false;
 }
 
+/**
+ * Hit test a shape against its outline rather than its bounding box. Testing
+ * the box would let the eraser swallow a large rectangle from the empty middle,
+ * nowhere near anything actually drawn.
+ */
+export function shapeHit(shape, x, y, radius) {
+  const reach = radius + shape.size / 2;
+  const reachSq = reach * reach;
+  const { x: ax, y: ay, x2: bx, y2: by } = shape;
+
+  switch (shape.shape) {
+    case 'line':
+    case 'arrow':
+      return segmentDistanceSq(x, y, ax, ay, bx, by) <= reachSq;
+
+    case 'rect': {
+      const left = Math.min(ax, bx);
+      const right = Math.max(ax, bx);
+      const top = Math.min(ay, by);
+      const bottom = Math.max(ay, by);
+      // A filled shape is grabbable anywhere inside it; an outline only at its edges.
+      if (shape.fill) {
+        return x >= left - reach && x <= right + reach && y >= top - reach && y <= bottom + reach;
+      }
+      const edges = [
+        [left, top, right, top],
+        [right, top, right, bottom],
+        [right, bottom, left, bottom],
+        [left, bottom, left, top],
+      ];
+      return edges.some(([sx, sy, ex, ey]) => segmentDistanceSq(x, y, sx, sy, ex, ey) <= reachSq);
+    }
+
+    case 'ellipse': {
+      const cx = (ax + bx) / 2;
+      const cy = (ay + by) / 2;
+      const rx = Math.abs(bx - ax) / 2;
+      const ry = Math.abs(by - ay) / 2;
+      if (rx < 0.5 || ry < 0.5) return false;
+      // Normalised radius: 1 is exactly on the rim. Converting the reach into
+      // that space is approximate for very eccentric ellipses but plenty
+      // accurate for deciding whether a pointer is on the line.
+      const normalized = Math.hypot((x - cx) / rx, (y - cy) / ry);
+      const tolerance = reach / Math.min(rx, ry);
+      return shape.fill ? normalized <= 1 + tolerance : Math.abs(normalized - 1) <= tolerance;
+    }
+
+    default:
+      return false;
+  }
+}
+
+/** Approximate footprint of a placed object, in page space. */
+export function objectBounds(object) {
+  if (object.kind === 'shape') {
+    return [
+      Math.min(object.x, object.x2),
+      Math.min(object.y, object.y2),
+      Math.max(object.x, object.x2),
+      Math.max(object.y, object.y2),
+    ];
+  }
+  if (object.kind === 'text') {
+    const width = object.width || 220;
+    // `height` is cached by the viewer from the rendered element; before that
+    // has happened, one line is a safe assumption.
+    const height = object.height || (object.fontSize || 15) * 1.4;
+    return [object.x, object.y, object.x + width, object.y + height];
+  }
+  // A note is anchored by its dot; give it a small square to grab.
+  const r = 9;
+  return [object.x - r, object.y - r, object.x + r, object.y + r];
+}
+
+/** Whether the eraser at (x, y) should take this object. */
+export function objectHit(object, x, y, radius) {
+  if (object.kind === 'shape') return shapeHit(object, x, y, radius);
+  const [x0, y0, x1, y1] = objectBounds(object);
+  return x >= x0 - radius && x <= x1 + radius && y >= y0 - radius && y <= y1 + radius;
+}
+
 /** Ray casting against the lasso polygon. */
 export function pointInPolygon(polygon, x, y) {
   let inside = false;

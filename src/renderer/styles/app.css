@@ -33,31 +33,24 @@ button {
 }
 
 /* ==========================================================================
-   Title bar — the window is frameless, so this is the drag handle
+   App bar — an ordinary toolbar. The window keeps its native decorations and
+   native menu bar, which sit above this.
    ========================================================================== */
 
-.titlebar {
-  height: 44px;
+.appbar {
+  height: 42px;
   display: flex;
   align-items: center;
   gap: 8px;
   padding: 0 10px;
-  background: var(--toolbar-bg);
-  backdrop-filter: var(--toolbar-blur);
-  -webkit-backdrop-filter: var(--toolbar-blur);
+  background: var(--bg-elevated);
   border-bottom: 0.5px solid var(--separator);
-  -webkit-app-region: drag;
   position: relative;
   z-index: 40;
+  flex: 0 0 auto;
 }
 
-.titlebar button,
-.titlebar .segmented,
-.titlebar .zoom-readout {
-  -webkit-app-region: no-drag;
-}
-
-.titlebar .title {
+.appbar .title {
   flex: 1;
   text-align: center;
   font-size: 13px;
@@ -70,7 +63,7 @@ button {
   padding: 0 8px;
 }
 
-.titlebar .title .subtitle {
+.appbar .title .subtitle {
   display: block;
   font-size: 11px;
   font-weight: 400;
@@ -117,33 +110,6 @@ button {
   stroke-width: 1.7;
   stroke-linecap: round;
   stroke-linejoin: round;
-}
-
-.window-controls {
-  display: flex;
-  gap: 6px;
-  padding-left: 4px;
-}
-
-.window-controls button {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  transition: filter var(--fast) var(--spring);
-}
-
-.window-controls button:hover {
-  filter: brightness(0.88);
-}
-
-.window-controls .wc-close {
-  background: #ff5f57;
-}
-.window-controls .wc-min {
-  background: #febc2e;
-}
-.window-controls .wc-max {
-  background: #28c840;
 }
 
 .zoom-readout {
@@ -488,6 +454,47 @@ button {
   color: var(--label-tertiary);
 }
 
+/* Delete affordance shared by text boxes; appears on hover or while editing so
+ * it is discoverable without cluttering the page. */
+.obj-remove {
+  position: absolute;
+  top: -9px;
+  right: -9px;
+  width: 19px;
+  height: 19px;
+  border-radius: 50%;
+  background: var(--surface-solid);
+  color: var(--label-secondary);
+  font-size: 15px;
+  line-height: 1;
+  display: grid;
+  place-items: center;
+  box-shadow:
+    0 0 0 0.5px var(--separator),
+    0 1px 4px rgba(0, 0, 0, 0.22);
+  opacity: 0;
+  transform: scale(0.8);
+  transition:
+    opacity var(--fast) var(--spring),
+    transform var(--medium) var(--spring-out),
+    background var(--fast) var(--spring),
+    color var(--fast) var(--spring);
+  pointer-events: none;
+}
+
+.obj-text:hover .obj-remove,
+.obj-text.editing .obj-remove,
+.obj-text.selected .obj-remove {
+  opacity: 1;
+  transform: scale(1);
+  pointer-events: auto;
+}
+
+.obj-remove:hover {
+  background: var(--red);
+  color: #fff;
+}
+
 .obj-note {
   width: 22px;
   height: 22px;
@@ -583,15 +590,41 @@ button {
   gap: 2px;
   padding: 6px;
   border-radius: var(--radius-pill);
-  background: var(--toolbar-bg);
-  backdrop-filter: var(--toolbar-blur);
-  -webkit-backdrop-filter: var(--toolbar-blur);
-  border: 0.5px solid var(--toolbar-border);
-  box-shadow: var(--toolbar-shadow);
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 0.5px solid var(--glass-rim);
+  box-shadow: var(--glass-shadow);
   z-index: 30;
+  isolation: isolate;
   transition:
     opacity var(--medium) var(--spring),
     transform var(--medium) var(--spring);
+}
+
+/* The specular edge. Glass catches light along its upper rim and falls away
+ * below; a single inset highlight is what separates it from a flat translucent
+ * panel. Non-interactive, and beneath the buttons. */
+.toolbar::before,
+.popover::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: -1;
+  background: linear-gradient(
+    to bottom,
+    var(--glass-highlight) 0%,
+    transparent 42%,
+    transparent 100%
+  );
+  opacity: 0.55;
+  mask:
+    linear-gradient(#000, #000) content-box,
+    linear-gradient(#000, #000);
+  mask-composite: exclude;
+  padding: 1px;
 }
 
 .toolbar.hidden {
@@ -681,12 +714,13 @@ button {
   padding: 14px;
   width: 268px;
   border-radius: var(--radius-lg);
-  background: var(--toolbar-bg);
-  backdrop-filter: var(--toolbar-blur);
-  -webkit-backdrop-filter: var(--toolbar-blur);
-  border: 0.5px solid var(--toolbar-border);
-  box-shadow: var(--toolbar-shadow);
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 0.5px solid var(--glass-rim);
+  box-shadow: var(--glass-shadow);
   z-index: 31;
+  isolation: isolate;
   transform-origin: var(--origin-x, 50%) calc(100% + 22px);
   transition:
     opacity var(--fast) var(--spring),
@@ -710,7 +744,9 @@ button {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: var(--label-tertiary);
+  /* Secondary rather than tertiary: these sit on translucent glass, which is
+   * always lighter than a solid panel, so the faintest label tone disappears. */
+  color: var(--label-secondary);
   margin-bottom: 10px;
 }
 

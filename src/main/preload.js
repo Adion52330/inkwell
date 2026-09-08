@@ -37,14 +37,9 @@ contextBridge.exposeInMainWorld('inkwell', {
   setDirty: (dirty) => ipcRenderer.send('window:dirty', dirty),
   confirmDiscard: (name) => ipcRenderer.invoke('dialog:confirmDiscard', name),
 
-  // --- frameless window chrome --------------------------------------------
-  // The window is frameless so the titlebar can be part of the design, which
-  // means the renderer has to drive minimise/maximise/close itself.
-  minimize: () => ipcRenderer.send('window:minimize'),
-  toggleMaximize: () => ipcRenderer.send('window:toggle-maximize'),
-  close: () => ipcRenderer.send('window:close'),
+  // The window uses native decorations, so the renderer only needs to tell the
+  // main process when a pending save has landed and it is safe to close.
   closeNow: () => ipcRenderer.send('window:close-now'),
-  windowState: () => ipcRenderer.invoke('window:state'),
   ready: () => ipcRenderer.send('renderer:ready'),
 
   // Modern Electron removed File.path from the renderer; this is the supported

@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install system dependencies
+        # poppler-utils provides pdftoppm, which the tests use to rasterise
+        # exported PDFs; xvfb gives the two Electron suites a display.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y poppler-utils xvfb libnss3 libgbm1 libasound2t64
+          python3 -m pip install --quiet --break-system-packages Pillow
+
+      - run: npm ci
+
+      - run: npm run build
+
+      - name: Export placement test
+        # Pure Node — no display needed.
+        run: npm run test:export
+
+      - name: Live stroke and object tests
+        # These launch the real application, so they need a virtual display.
+        # Electron's setuid sandbox is unavailable on the runner.
+        env:
+          ELECTRON_DISABLE_SANDBOX: 1
+        run: |
+          xvfb-run -a --server-args="-screen 0 1280x900x24" npm run test:live-stroke
+          xvfb-run -a --server-args="-screen 0 1280x900x24" npm run test:objects
+
+  package:
+    name: AppImage
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build AppImage
+        run: npm run dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Inkwell-AppImage
+          path: release/*.AppImage
+          if-no-files-found: error
+          retention-days: 14

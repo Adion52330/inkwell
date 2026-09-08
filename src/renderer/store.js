@@ -322,6 +322,40 @@ export class Store extends EventTarget {
     return true;
   }
 
+  /**
+   * Remove strokes and objects together as a single undoable command.
+   * The eraser and the lasso both act on a mixed set, and splitting that into
+   * two commands would make one erase take two presses of undo.
+   */
+  removeItems(pageIndex, ids) {
+    const page = this.page(pageIndex);
+    if (!page) return false;
+    const wanted = new Set(ids);
+    // Positions are captured so undo restores z-order, not just membership.
+    const strokes = [];
+    const objects = [];
+    page.strokes.forEach((stroke, index) => {
+      if (wanted.has(stroke.id)) strokes.push({ index, item: stroke });
+    });
+    page.objects.forEach((object, index) => {
+      if (wanted.has(object.id)) objects.push({ index, item: object });
+    });
+    if (!strokes.length && !objects.length) return false;
+
+    this.apply({
+      pages: [pageIndex],
+      redo: () => {
+        for (let i = strokes.length - 1; i >= 0; i -= 1) page.strokes.splice(strokes[i].index, 1);
+        for (let i = objects.length - 1; i >= 0; i -= 1) page.objects.splice(objects[i].index, 1);
+      },
+      undo: () => {
+        for (const { index, item } of strokes) page.strokes.splice(index, 0, item);
+        for (const { index, item } of objects) page.objects.splice(index, 0, item);
+      },
+    });
+    return true;
+  }
+
   // --- page operations -----------------------------------------------------
 
   rotatePage(pageIndex, delta) {

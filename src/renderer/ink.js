@@ -5,7 +5,15 @@
 // frame rate, without ever letting a resting palm or a scrolling finger leave a
 // mark on the page.
 
-import { drawStroke, drawShape, strokeHit, strokeInPolygon, pointInPolygon } from './ink-render.js';
+import {
+  drawStroke,
+  drawShape,
+  strokeHit,
+  strokeInPolygon,
+  pointInPolygon,
+  objectHit,
+  objectBounds,
+} from './ink-render.js';
 import { strokeBBox } from './store.js';
 
 // After the pen is seen, touch is ignored for this long. Long enough to cover
@@ -281,7 +289,10 @@ export class InkEngine {
         this.#commitStroke(gesture);
         break;
       case 'eraser':
-        if (gesture.erased.size) this.store.removeStrokes(pageIndex, [...gesture.erased]);
+        // Strokes and objects are erased together in one command: the eraser
+        // hits shapes, text and notes too, and previously only the strokes were
+        // actually removed, so an erased shape reappeared on the next repaint.
+        if (gesture.erased.size) this.store.removeItems(pageIndex, [...gesture.erased]);
         break;
       case 'lasso':
         this.#commitLasso(gesture);
@@ -342,9 +353,11 @@ export class InkEngine {
         changed = true;
       }
     }
+    // The eraser takes shapes, text boxes and notes as well as ink — otherwise
+    // there is no obvious way to get rid of them.
     for (const object of page.objects) {
       if (gesture.erased.has(object.id)) continue;
-      if (object.kind === 'shape' && this.#shapeHit(object, x, y, radius)) {
+      if (objectHit(object, x, y, radius)) {
         gesture.erased.add(object.id);
         changed = true;
       }
@@ -353,16 +366,6 @@ export class InkEngine {
     // with an exclusion set, then actually removed on pointerup as one
     // undoable command.
     if (changed) this.view.repaintInk(gesture.pageIndex, gesture.erased);
-  }
-
-  #shapeHit(shape, x, y, radius) {
-    const pad = radius + shape.size;
-    const inBox =
-      x >= Math.min(shape.x, shape.x2) - pad &&
-      x <= Math.max(shape.x, shape.x2) + pad &&
-      y >= Math.min(shape.y, shape.y2) - pad &&
-      y <= Math.max(shape.y, shape.y2) + pad;
-    return inBox;
   }
 
   #commitLasso(gesture) {
@@ -378,7 +381,10 @@ export class InkEngine {
       if (strokeInPolygon(stroke, polygon)) strokeIds.add(stroke.id);
     }
     for (const object of page.objects) {
-      if (pointInPolygon(polygon, object.x, object.y)) objectIds.add(object.id);
+      const [x0, y0, x1, y1] = objectBounds(object);
+      // Enclosing the centre is the test; using the anchor corner alone made
+      // whether a text box was caught depend on where its box happened to start.
+      if (pointInPolygon(polygon, (x0 + x1) / 2, (y0 + y1) / 2)) objectIds.add(object.id);
     }
     this.selection = { pageIndex: gesture.pageIndex, strokeIds, objectIds };
     this.view.setSelection(this.selection);
@@ -400,9 +406,7 @@ export class InkEngine {
   deleteSelection() {
     const { pageIndex, strokeIds, objectIds } = this.selection;
     if (pageIndex < 0) return false;
-    let removed = false;
-    if (strokeIds.size) removed = this.store.removeStrokes(pageIndex, [...strokeIds]) || removed;
-    if (objectIds.size) removed = this.store.removeObjects(pageIndex, [...objectIds]) || removed;
+    const removed = this.store.removeItems(pageIndex, [...strokeIds, ...objectIds]);
     this.clearSelection();
     return removed;
   }
@@ -410,9 +414,11 @@ export class InkEngine {
   // --- live painting -------------------------------------------------------
 
   #paintWet(gesture) {
+    // Clear first, then take the context: clearWet resets the canvas to device
+    // pixels internally, so a context acquired before it would be stale.
+    this.view.clearWet(gesture.pageIndex);
     const ctx = this.view.wetCtx(gesture.pageIndex);
     if (!ctx) return;
-    this.view.clearWet(gesture.pageIndex);
     switch (gesture.tool) {
       case 'pen':
       case 'highlighter':

@@ -26,12 +26,21 @@ npm start
 ## Tests
 
 ```bash
-npm run test:export
+npm test          # all three suites
 ```
 
-Draws a probe stroke at known page coordinates on every page of the sample,
-exports, rasterises the result and asserts the ink landed where it was drawn —
-including on the sample's `/Rotate 90` page.
+| Suite | What it proves |
+| --- | --- |
+| `test:export` | Ink exported to a flattened PDF lands at exactly the page coordinates it was drawn at, including on a `/Rotate 90` page. |
+| `test:live-stroke` | The in-progress stroke is painted where the pointer is, and does not move when the pointer is released. |
+| `test:objects` | Shapes, text boxes and notes can be removed — and stay removed after a repaint. |
+
+Each one checks rendered output rather than internal state: they rasterise real
+pages or compare real frames. Every coordinate bug this project has had would
+have passed a unit test written from the same assumptions as the code.
+
+Needs `poppler-utils`, Python 3 with Pillow, and a display — `xvfb-run -a npm
+test` works headless.
 
 ## Building the AppImage
 
@@ -101,7 +110,14 @@ can neither draw nor scroll the page out from under you.
   sidebar, and append another PDF
 
 Tapping the tool you already have selected opens its settings — the GoodNotes
-gesture, which is why the palette can stay a single row.
+gesture, which is why the palette can stay a single row. The palette itself is
+glass: it blurs and refracts the page beneath it rather than sitting on top as
+an opaque bar.
+
+**Removing things.** Anything on a page can go three ways: the eraser takes
+strokes, shapes, text boxes and notes on contact; the lasso selects a group and
+`Delete` removes it; and text boxes and notes carry their own × button. All of
+it is a single undo step.
 
 ## Keyboard
 
@@ -188,6 +204,13 @@ keeps zooming smooth rather than stuttering on every wheel tick.
 - x86-64 only. An `arm64` AppImage would need the target added to
   `build.linux.target` in `package.json`.
 
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) — it covers the layout of the code and
+the handful of invariants worth knowing before changing anything (the original
+PDF is never written to; ink is stored in page space; every mutation goes
+through the store's command stack).
+
 ## Licence
 
-MIT.
+MIT — see [LICENSE](LICENSE).

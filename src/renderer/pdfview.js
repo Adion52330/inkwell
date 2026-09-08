@@ -428,8 +428,13 @@ export class PdfView extends EventTarget {
     if (!el) return;
     const canvas = el.querySelector('.wet-layer');
     const ctx = canvas.getContext('2d');
+    // Clearing has to happen in device pixels, but the context must be handed
+    // back in page space. Leaving it on the identity transform made the live
+    // stroke paint in raw pixels — it appeared offset and shrunk while drawing,
+    // then jumped into place when the committed layer repainted on release.
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+    this.#setPageTransform(ctx, index);
     // Selection chrome lives on the wet layer, so it has to be redrawn every
     // time that layer is cleared.
     if (this.selection.pageIndex === index) this.#drawSelection(index);
@@ -488,6 +493,15 @@ export class PdfView extends EventTarget {
       else el.querySelector('.obj-note-body')?.focus();
     }
     return created;
+  }
+
+  /**
+   * Rebuild the DOM layer for a page's text boxes and notes. Public because the
+   * store is the source of truth: any command that adds, removes or restores an
+   * object — including an undo — has to be reflected here, not just on canvas.
+   */
+  renderObjects(index) {
+    this.#renderObjects(index);
   }
 
   #renderObjects(index) {
@@ -555,6 +569,11 @@ export class PdfView extends EventTarget {
       }
       node.classList.toggle('selected', this.selection.objectIds.has(object.id));
       layer.append(node);
+
+      // Cache the rendered height in page space so the eraser and lasso can hit
+      // a text box by its real footprint rather than guessing from font size.
+      // Derived geometry, so it is set directly rather than through a command.
+      if (object.kind === 'text') object.height = node.offsetHeight / this.scale;
     }
   }
 

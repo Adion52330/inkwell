@@ -88,7 +88,9 @@ function createWindow() {
     minWidth: 720,
     minHeight: 520,
     show: false,
-    frame: false,
+    // Native window decorations and the native menu bar. A custom frameless
+    // title bar breaks tiling window managers, window snapping and the desktop
+    // environment's own theming, and gains nothing here.
     backgroundColor: '#1c1c1e',
     title: 'Inkwell',
     icon: path.join(__dirname, '../../build/icon.png'),
@@ -320,16 +322,6 @@ ipcMain.on('window:close-now', () => {
   rendererDirty = false;
   if (win && !win.isDestroyed()) win.close();
 });
-
-ipcMain.on('window:minimize', () => win?.minimize());
-ipcMain.on('window:toggle-maximize', () => {
-  if (!win) return;
-  if (win.isMaximized()) win.unmaximize();
-  else win.maximize();
-});
-ipcMain.on('window:close', () => win?.close());
-
-ipcMain.handle('window:state', () => ({ maximized: win?.isMaximized() ?? false }));
 
 // Renderer reports it is ready; hand over any file from argv or an OS open event.
 ipcMain.on('renderer:ready', () => {

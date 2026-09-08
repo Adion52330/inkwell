@@ -60,6 +60,22 @@ export function createObjectElement(object, { onEdit, onSelect, onDragEnd, onDel
       event.stopPropagation(); // never let typing trigger tool shortcuts
       if (event.key === 'Escape') editor.blur();
     });
+
+    // Without this there is no obvious way to get rid of a text box that has
+    // text in it — blur only cleans up empty ones.
+    const remove = document.createElement('button');
+    remove.className = 'obj-remove';
+    remove.type = 'button';
+    remove.textContent = '×';
+    remove.title = 'Delete text box';
+    remove.setAttribute('aria-label', 'Delete text box');
+    // pointerdown must not reach the drag handler or the ink engine below.
+    remove.addEventListener('pointerdown', (event) => event.stopPropagation());
+    remove.addEventListener('click', (event) => {
+      event.stopPropagation();
+      onDelete();
+    });
+    el.append(remove);
   } else {
     const dot = document.createElement('button');
     dot.className = 'obj-note-dot';
@@ -81,6 +97,8 @@ export function createObjectElement(object, { onEdit, onSelect, onDragEnd, onDel
     remove.type = 'button';
     remove.textContent = '×';
     remove.title = 'Delete note';
+    remove.setAttribute('aria-label', 'Delete note');
+    remove.addEventListener('pointerdown', (event) => event.stopPropagation());
     remove.addEventListener('click', (event) => {
       event.stopPropagation();
       onDelete();

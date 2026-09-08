@@ -91,9 +91,6 @@ for (const [id, name] of [
 }
 $('welcome-mark').innerHTML = icon('pen', 40);
 
-$('wc-close').addEventListener('click', () => api.close());
-$('wc-min').addEventListener('click', () => api.minimize());
-$('wc-max').addEventListener('click', () => api.toggleMaximize());
 $('btn-open').addEventListener('click', () => openViaDialog());
 $('btn-open-big').addEventListener('click', () => openViaDialog());
 $('btn-undo').addEventListener('click', () => command('undo'));
@@ -210,6 +207,10 @@ store.addEventListener('change', (event) => {
   } else if (pages) {
     for (const index of pages) {
       view.repaintInk(index);
+      // Text boxes and notes live in the DOM, not on the ink canvas, so they
+      // need their own rebuild — otherwise a deleted note stays on screen and
+      // an undone deletion never comes back.
+      view.renderObjects(index);
       if (thumbs.open) thumbs.invalidate(index);
     }
   }
@@ -509,6 +510,13 @@ viewerEl.addEventListener(
 );
 
 // --- view events ------------------------------------------------------------
+
+// The view owns what is visually selected; the ink engine owns what Delete acts
+// on. Clicking a text box or note went through the view only, so the engine's
+// copy stayed empty and Delete did nothing. One event keeps them in step.
+view.addEventListener('selection', (event) => {
+  ink.selection = event.detail;
+});
 
 view.addEventListener('zoom', () => {
   zoomEl.textContent = `${Math.round(view.scale * 100)}%`;

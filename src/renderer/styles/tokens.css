@@ -42,6 +42,20 @@
   --toolbar-border: rgba(0, 0, 0, 0.06);
   --toolbar-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.05), 0 8px 28px rgba(0, 0, 0, 0.16);
 
+  /* Glass — the floating tool palette and its popover.
+   * Real glass is not just a translucent panel: it refracts what is behind it
+   * (blur + saturation), catches light along its top edge (the inset highlight),
+   * and casts a soft shadow while keeping a crisp rim. All four together are
+   * what stop it reading as a flat grey box with some opacity. */
+  --glass-blur: saturate(200%) blur(36px);
+  --glass-bg: rgba(255, 255, 255, 0.66);
+  --glass-rim: rgba(255, 255, 255, 0.75);
+  --glass-highlight: rgba(255, 255, 255, 0.85);
+  --glass-shadow:
+    0 0 0 0.5px rgba(0, 0, 0, 0.07),
+    0 2px 6px rgba(0, 0, 0, 0.06),
+    0 16px 44px rgba(0, 0, 0, 0.18);
+
   /* Geometry */
   --radius-sm: 8px;
   --radius: 12px;
@@ -85,6 +99,14 @@
     --toolbar-bg: rgba(30, 30, 32, 0.8);
     --toolbar-border: rgba(255, 255, 255, 0.08);
     --toolbar-shadow: 0 0 0 0.5px rgba(255, 255, 255, 0.06), 0 8px 28px rgba(0, 0, 0, 0.6);
+
+    --glass-bg: rgba(38, 38, 42, 0.76);
+    --glass-rim: rgba(255, 255, 255, 0.16);
+    --glass-highlight: rgba(255, 255, 255, 0.22);
+    --glass-shadow:
+      0 0 0 0.5px rgba(255, 255, 255, 0.08),
+      0 2px 6px rgba(0, 0, 0, 0.3),
+      0 16px 44px rgba(0, 0, 0, 0.55);
   }
 }
 
@@ -106,6 +128,13 @@
   --toolbar-bg: rgba(30, 30, 32, 0.8);
   --toolbar-border: rgba(255, 255, 255, 0.08);
   --toolbar-shadow: 0 0 0 0.5px rgba(255, 255, 255, 0.06), 0 8px 28px rgba(0, 0, 0, 0.6);
+  --glass-bg: rgba(38, 38, 42, 0.76);
+  --glass-rim: rgba(255, 255, 255, 0.16);
+  --glass-highlight: rgba(255, 255, 255, 0.22);
+  --glass-shadow:
+    0 0 0 0.5px rgba(255, 255, 255, 0.08),
+    0 2px 6px rgba(0, 0, 0, 0.3),
+    0 16px 44px rgba(0, 0, 0, 0.55);
 }
 
 @media (prefers-reduced-motion: reduce) {
