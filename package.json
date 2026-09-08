@@ -12,7 +12,8 @@
     "start": "npm run build && electron .",
     "dev": "npm run build && electron . --dev",
     "sample": "node scripts/make-sample.js",
-    "dist": "npm run build && electron-builder --linux AppImage"
+    "dist": "npm run build && electron-builder --linux AppImage",
+    "test:export": "node scripts/make-sample.js && esbuild scripts/test-export.js --bundle --platform=node --format=esm --outfile=dist/test-export.mjs --log-level=warning && node dist/test-export.mjs sample/sample.pdf dist/export-test.pdf && python3 scripts/check-export.py dist/export-test.pdf"
   },
   "dependencies": {
     "pdf-lib": "^1.17.1",
@@ -42,7 +43,9 @@
       "target": [
         {
           "target": "AppImage",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ],
       "category": "Office;Graphics;Viewer",
